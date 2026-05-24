@@ -53,7 +53,7 @@ For detailed state transitions, loop detection, human-review handling, and sessi
 - Python `>=3.11`.
 - `uv` is recommended; `uv.lock` is committed.
 - [OpenCode](https://opencode.ai/) must be installed and available on `PATH` as `opencode`, unless `program.opencode_bin` overrides it.
-- An OpenCode attach server and model/provider credentials must be configured. The sample config uses `attach_url: http://localhost:4096`.
+- An OpenCode attach server and model/provider credentials must be configured. Start the OpenCode server from the target workspace/repository where agents should read files, modify files, and run commands. The sample config uses `attach_url: http://localhost:4096`.
 
 ## Quickstart
 
@@ -61,15 +61,40 @@ From a checked-out repo:
 
 ```bash
 uv sync
-uv run python main.py --help
-uv run python main.py --config example.config.workflow.yaml --jobs example.jobs.yaml
+uv run agentflow --help
 ```
 
-Without `uv`, install dependencies in your preferred virtual environment and run:
+Without `uv`, install the package in your preferred virtual environment and run the generated CLI directly:
 
 ```bash
-python3 main.py --help
-python3 main.py --config example.config.workflow.yaml --jobs example.jobs.yaml
+python3 -m pip install -e .
+agentflow --help
+```
+
+Create your own workflow config and jobs file. You can copy the examples as a starting point:
+
+```bash
+cp example.config.workflow.yaml my.workflow.yaml
+cp example.jobs.yaml my.jobs.yaml
+```
+
+Then edit:
+
+- `my.workflow.yaml`: shared runtime settings, prompt pack, models, iteration limits, output paths, and agent slots.
+- `my.jobs.yaml`: the actual work items you want to run.
+
+For most first runs, you can leave the `agents` block in `my.workflow.yaml` unchanged and only adjust `program` settings plus the jobs file.
+
+Run your files:
+
+```bash
+uv run agentflow --config my.workflow.yaml --jobs my.jobs.yaml
+```
+
+Or, without `uv` after installation:
+
+```bash
+agentflow --config my.workflow.yaml --jobs my.jobs.yaml
 ```
 
 Common arguments:
@@ -121,6 +146,8 @@ The built-in prompt packs are:
 
 - `implementation`: code implementation, scripts, tests, and bug fixes;
 - `planning`: solution design, execution planning, documentation drafts, and architecture/process work.
+
+You can also provide a custom prompt pack with `program.prompt_pack_path` or `--prompt-pack-path`; custom packs still use the fixed agent slots.
 
 For full configuration defaults, prompt-pack resolution, agent slots, variant priority, and job behavior, see [`docs/configuration.md`](docs/configuration.md).
 

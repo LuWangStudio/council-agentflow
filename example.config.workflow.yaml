@@ -3,8 +3,8 @@ program:
   attach_url: http://localhost:4096
   default_model: openai/gpt-5.5
   default_variant: xhigh
-  prompt_pack: implementation
-  # prompt_pack: planning
+  # prompt_pack: implementation
+  prompt_pack: planning
 
   # Optional: explicit prompt pack directory or pack.yaml path.
   # If omitted, this falls back to the built-in prompts/<prompt_pack> next to main.py.
