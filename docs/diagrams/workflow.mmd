@@ -1,0 +1,60 @@
+%%{init: {"theme":"dark","themeVariables":{"background":"#010409","primaryColor":"#0f172a","primaryTextColor":"#f8fafc","primaryBorderColor":"#64748b","lineColor":"#94a3b8","secondaryColor":"#111827","tertiaryColor":"#010409","edgeLabelBackground":"#010409","fontFamily":"Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif","fontSize":"15px"},"flowchart":{"htmlLabels":true,"curve":"basis"}}}%%
+flowchart TD
+    job[Job task] --> execution[execution]
+
+    execution --> reviewer_1[reviewer_1]
+    execution --> reviewer_2[reviewer_2]
+    reviewer_1 --> review_decision[review_decision]
+    reviewer_2 --> review_decision
+
+    review_decision --> force_check{console forced<br/>human review?}
+    force_check -->|yes / skip autonomy| human_review[human_review]
+    force_check -->|no| next_action{review_decision.next_action}
+
+    next_action -->|done| human_review
+    next_action -->|human_review| autonomy_decision[autonomy_decision]
+    next_action -->|rerun_execution| loop_check{loop detector<br/>condition met?}
+
+    loop_check -->|yes| loop_detector[loop_detector]
+    loop_check -->|no| iteration_capacity{iteration capacity<br/>remaining?}
+    loop_detector -->|continue| iteration_capacity
+    loop_detector -->|human_review| autonomy_decision
+
+    iteration_capacity -->|yes| execution
+    iteration_capacity -->|no / max_iterations reached| autonomy_decision
+
+    autonomy_decision -->|auto_resolve<br/>resume_feedback| execution
+    autonomy_decision -->|human_review| human_review
+
+    human_review -->|feedback confirmed<br/>same cycle| execution
+    human_review -->|cycle completed<br/>no feedback| cycle_done{more cycles?}
+    cycle_done -->|yes| next_cycle[advance cycle<br/>fresh sessions]
+    cycle_done -->|no| done[done]
+
+    human_review -->|escalation<br/>no feedback + advance| next_cycle
+    human_review -->|escalation<br/>no feedback + stop| needs_human_review[needs_human_review]
+    next_cycle --> execution
+
+    linkStyle default stroke:#94a3b8,stroke-width:1.5px;
+
+    classDef task fill:#0b1220,stroke:#cbd5e1,stroke-width:1.5px,color:#f8fafc;
+    classDef executionAgent fill:#06152b,stroke:#38bdf8,stroke-width:1.8px,color:#e0f2fe;
+    classDef reviewer fill:#160f2e,stroke:#a78bfa,stroke-width:1.8px,color:#ede9fe;
+    classDef adjudicator fill:#1f1a0b,stroke:#facc15,stroke-width:1.8px,color:#fef3c7;
+    classDef guard fill:#101827,stroke:#64748b,stroke-width:1.5px,color:#e2e8f0;
+    classDef loop fill:#052326,stroke:#2dd4bf,stroke-width:1.8px,color:#ccfbf1,stroke-dasharray:6 4;
+    classDef autonomy fill:#241307,stroke:#f59e0b,stroke-width:1.8px,color:#ffedd5;
+    classDef human fill:#1f102a,stroke:#c084fc,stroke-width:1.8px,color:#f5d0fe;
+    classDef cycle fill:#111827,stroke:#60a5fa,stroke-width:1.8px,color:#dbeafe;
+    classDef terminal fill:#052e16,stroke:#22c55e,stroke-width:1.8px,color:#dcfce7;
+
+    class job task;
+    class execution executionAgent;
+    class reviewer_1,reviewer_2 reviewer;
+    class review_decision adjudicator;
+    class autonomy_decision autonomy;
+    class force_check,next_action,loop_check,iteration_capacity,cycle_done guard;
+    class loop_detector loop;
+    class human_review human;
+    class next_cycle cycle;
+    class done,needs_human_review terminal;
