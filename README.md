@@ -160,6 +160,11 @@ Typical artifacts include:
 
 For artifact schemas, retry behavior, and troubleshooting, see [`docs/artifacts-and-troubleshooting.md`](docs/artifacts-and-troubleshooting.md).
 
+## Known limitations
+
+- **Higher token consumption**: review-driven iterations use multiple agent calls per iteration, plus adjudication and optional autonomy/loop-detection steps. This is more expensive than a single-agent run.
+- **Fixed workflow**: the workflow topology is currently fixed around the built-in agent slots and step order. Prompt packs can change role semantics and prompt behavior, but they do not define an arbitrary custom workflow graph.
+
 ## Further documentation
 
 - Workflow mechanics: [`docs/workflow.md`](docs/workflow.md)
