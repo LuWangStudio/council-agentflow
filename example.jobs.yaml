@@ -1,0 +1,13 @@
+jobs:
+  - topic: api-service-design
+    task: |
+      产出一份 API 服务执行说明，包含目标、范围、约束、主要步骤、风险和验证方式。
+    status: pending
+    # 可选：在 human_review 阶段手工加入该字段，作为人工反馈
+    # human_review: |
+    #   请补充回滚策略，并明确验证步骤中的负责人。
+
+  - topic: old-job
+    task: |
+      这个 job 已完成，不应再次执行。
+    status: done

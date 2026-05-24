@@ -1,0 +1,30 @@
+agents:
+  execution:
+    role_name: execution
+    output_name: execution
+    prompt_file: execution.md
+
+  reviewer_1:
+    role_name: reviewer-requirements
+    output_name: reviewer-requirements
+    prompt_file: reviewer-requirements.md
+
+  reviewer_2:
+    role_name: reviewer-quality
+    output_name: reviewer-quality
+    prompt_file: reviewer-quality.md
+
+  review_decision:
+    role_name: review-decision
+    output_name: review-decision
+    prompt_file: review-decision.md
+
+  autonomy_decision:
+    role_name: autonomy-decision
+    output_name: autonomy-decision
+    prompt_file: autonomy-decision.md
+
+  loop_detector:
+    role_name: loop-detector
+    output_name: loop-detector
+    prompt_file: loop-detector.md
