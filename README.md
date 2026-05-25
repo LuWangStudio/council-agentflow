@@ -8,7 +8,7 @@ The goal is to improve agent execution quality through controlled iterations, wh
 
 ## Why this exists
 
-Single-agent loops often mix too many responsibilities: planning, implementation, review, deciding whether the review matters, rerunning, and deciding when to stop. This makes iteration hard to govern: the agent may rerun without independent review, accept weak feedback, or loop without improving. This project separates those responsibilities into named roles and file artifacts, making each iteration easier to inspect and control.
+Single-session agent loops often struggle to reliably discover their own mistakes. Adding subagents can help, but without hard workflow boundaries it is still unclear who reviews, who adjudicates, when a rerun is justified, and when the system should pause for human input. This project separates those responsibilities into named roles and file artifacts, making each iteration easier to inspect and control.
 
 Use it when you want:
 
