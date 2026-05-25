@@ -1,4 +1,4 @@
-%%{init: {"theme":"dark","themeVariables":{"background":"#010409","primaryColor":"#0f172a","primaryTextColor":"#f8fafc","primaryBorderColor":"#64748b","lineColor":"#94a3b8","secondaryColor":"#111827","tertiaryColor":"#010409","edgeLabelBackground":"#010409","fontFamily":"Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif","fontSize":"15px"},"flowchart":{"htmlLabels":true,"curve":"basis"}}}%%
+%%{init: {"theme":"dark","themeVariables":{"background":"#010409","primaryColor":"#0f172a","primaryTextColor":"#f8fafc","primaryBorderColor":"#64748b","lineColor":"#94a3b8","secondaryColor":"#111827","tertiaryColor":"#010409","edgeLabelBackground":"#010409","fontFamily":"Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif","fontSize":"18px"},"flowchart":{"htmlLabels":true,"curve":"basis","nodeSpacing":20,"rankSpacing":24,"padding":6}}}%%
 flowchart TD
     job[Job task] --> execution[execution]
 
@@ -9,19 +9,19 @@ flowchart TD
 
     review_decision --> force_check{console forced<br/>human review?}
     force_check -->|yes / skip autonomy| human_review[human_review]
-    force_check -->|no| next_action{review_decision.next_action}
+    force_check -->|no| next_action{review decision next_action}
 
     next_action -->|done| human_review
     next_action -->|human_review| autonomy_decision[autonomy_decision]
-    next_action -->|rerun_execution| loop_check{loop detector<br/>condition met?}
+    next_action -->|rerun_execution| loop_check{should use<br/>loop detector}
 
     loop_check -->|yes| loop_detector[loop_detector]
-    loop_check -->|no| iteration_capacity{iteration capacity<br/>remaining?}
+    loop_check -->|no| iteration_capacity{iter capa<br/>remaining?}
     loop_detector -->|continue| iteration_capacity
     loop_detector -->|human_review| autonomy_decision
 
     iteration_capacity -->|yes| execution
-    iteration_capacity -->|no / max_iterations reached| autonomy_decision
+    iteration_capacity -->|no: max iter reached| autonomy_decision
 
     autonomy_decision -->|auto_resolve<br/>resume_feedback| execution
     autonomy_decision -->|human_review| human_review
@@ -31,8 +31,8 @@ flowchart TD
     cycle_done -->|yes| next_cycle[advance cycle<br/>fresh sessions]
     cycle_done -->|no| done[done]
 
-    human_review -->|escalation<br/>no feedback + advance| next_cycle
-    human_review -->|escalation<br/>no feedback + stop| needs_human_review[needs_human_review]
+    human_review -->|no feedback<br/>advance cycle| next_cycle
+    %% human_review -->|no feedback<br/>stop job<br/>status=needs_human_review| human_review
     next_cycle --> execution
 
     linkStyle default stroke:#94a3b8,stroke-width:1.5px;
@@ -57,4 +57,4 @@ flowchart TD
     class loop_detector loop;
     class human_review human;
     class next_cycle cycle;
-    class done,needs_human_review terminal;
+    class done terminal;

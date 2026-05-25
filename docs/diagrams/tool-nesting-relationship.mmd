@@ -1,0 +1,40 @@
+%%{init: {"theme":"dark","themeVariables":{"background":"#010409","primaryColor":"#0f172a","primaryTextColor":"#f8fafc","primaryBorderColor":"#64748b","lineColor":"#94a3b8","secondaryColor":"#111827","tertiaryColor":"#010409","edgeLabelBackground":"#010409","fontFamily":"Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif","fontSize":"15px"},"flowchart":{"htmlLabels":true,"curve":"basis"}}}%%
+flowchart LR
+    step["One council-agentflow step:<br/>execution / reviewer / decision"]
+
+    subgraph opencode["Inside OpenCode"]
+        direction TB
+
+        prompt["Rendered prompt + repo context"]
+        agent["OpenCode agent runtime"]
+
+        subgraph extensions["local extensible tools"]
+            direction LR
+            feature_dev["feature-dev"]
+            superpowers["superpowers"]
+            other["other helpers<br>skills..."]
+        end
+
+        prompt --> agent
+        agent -. may use .-> extensions
+    end
+
+    step -->|CLI invocation| opencode
+    opencode --> result["Step artifact / result file"]
+
+    linkStyle default stroke:#94a3b8,stroke-width:1.5px;
+
+    classDef outer fill:#06152b,stroke:#38bdf8,stroke-width:1.8px,color:#e0f2fe;
+    classDef opencodeNode fill:#1f1a0b,stroke:#facc15,stroke-width:1.8px,color:#fef3c7;
+    classDef extension fill:#160f2e,stroke:#a78bfa,stroke-width:1.8px,color:#ede9fe;
+    classDef artifact fill:#052e16,stroke:#22c55e,stroke-width:1.8px,color:#dcfce7;
+    classDef noteClass fill:#101827,stroke:#64748b,stroke-width:1.5px,color:#e2e8f0;
+
+    class step outer;
+    class prompt,agent opencodeNode;
+    class feature_dev,superpowers,other extension;
+    class result artifact;
+    class note noteClass;
+
+    style opencode fill:#0b1220,stroke:#64748b,stroke-width:1.5px,color:#f8fafc;
+    style extensions fill:#111827,stroke:#a78bfa,stroke-width:1.5px,color:#ede9fe;
