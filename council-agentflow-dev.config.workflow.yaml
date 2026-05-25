@@ -1,0 +1,39 @@
+program:
+  opencode_bin: opencode
+  attach_url: http://localhost:4096
+  default_model: openai/gpt-5.5
+  default_variant: xhigh
+  prompt_pack: implementation
+
+  max_rounds: 1
+  max_iterations_per_cycle: 50
+  temp_dir: .agentflow-temp
+  write_back: true
+
+agents:
+  execution:
+    # model: minimax-coding-plan/MiniMax-M2.7
+    # variant: xhigh
+    output_path_template: ${job_temp_dir}/${agent_output_name}-cycle-${cycle_number}-iteration-${iteration_number}.txt
+
+  reviewer_1:
+    # variant: xhigh
+    output_path_template: ${job_temp_dir}/${agent_output_name}-cycle-${cycle_number}-iteration-${iteration_number}.txt
+
+  reviewer_2:
+    # variant: xhigh
+    output_path_template: ${job_temp_dir}/${agent_output_name}-cycle-${cycle_number}-iteration-${iteration_number}.txt
+
+  review_decision:
+    # variant: xhigh
+    output_path_template: ${job_temp_dir}/${agent_output_name}-cycle-${cycle_number}-iteration-${iteration_number}.txt
+    merged_review_output_path_template: ${job_temp_dir}/${agent_output_name}-cycle-${cycle_number}-iteration-${iteration_number}.review.txt
+
+  autonomy_decision:
+    # variant: xhigh
+    output_path_template: ${job_temp_dir}/${agent_output_name}-cycle-${cycle_number}-iteration-${iteration_number}.txt
+    decision_report_output_path_template: ${job_temp_dir}/${agent_output_name}-cycle-${cycle_number}-iteration-${iteration_number}.report.md
+
+  loop_detector:
+    variant: medium
+    output_path_template: ${job_temp_dir}/${agent_output_name}-cycle-${cycle_number}-iteration-${iteration_number}.txt

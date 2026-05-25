@@ -1,0 +1,117 @@
+jobs:
+  - topic: add-first-layer-unit-tests
+    task: |
+      Add the first layer of unit tests for this project.
+
+      Scope:
+      - Use pytest as the test framework.
+      - Add only fast unit tests that do not invoke real OpenCode, model providers,
+        network calls, or external services.
+      - Focus on pure Python logic and artifact validation.
+
+      Test organization:
+      - Create a `tests/` directory if it does not already exist.
+      - Add focused test modules for:
+        1. `agentflow_core.config`
+        2. `agentflow_core.workflow_io`
+        3. validation helpers/behavior in `agentflow_core.workflow_steps`
+      - Prefer `tmp_path` for temporary YAML files and artifacts.
+      - Prefer lightweight inline fixtures over large checked-in fixture trees.
+
+      Required coverage:
+      1. Config loading and validation (`agentflow_core.config`)
+         - Successful loading of a minimal workflow config and jobs file.
+         - Program defaults are applied when omitted.
+         - Prompt pack resolution works for an explicit prompt pack path.
+         - CLI `prompt_pack_path` overrides `program.prompt_pack_path`.
+         - Missing required agent config raises `ConfigError`.
+         - `review_decision` without `merged_review_output_path_template` raises `ConfigError`.
+         - `autonomy_decision` without `decision_report_output_path_template` raises `ConfigError`.
+         - Duplicate job `topic` raises `ConfigError`.
+         - Missing job `status` defaults to `pending`.
+         - `update_job_status` writes back only status when `write_back: true`.
+         - `reload_job_from_jobs_file` returns updated job data.
+
+      2. Workflow IO (`agentflow_core.workflow_io`)
+         - `load_text` raises `WorkflowError` for a missing file.
+         - `load_json_text_payload` rejects invalid JSON.
+         - `load_json_text_payload` rejects JSON roots that are not objects.
+         - `load_json_text_payload` rejects objects missing required keys.
+         - `load_json_text_payload` accepts valid JSON objects.
+         - `reset_job_temp_dir` clears an existing temp directory and recreates it.
+
+      3. Workflow step output validation (`agentflow_core.workflow_steps`)
+         - `review_decision` accepts valid `next_action` values:
+           `rerun_execution`, `human_review`, and `done`.
+         - `review_decision` rejects invalid `next_action`.
+         - `review_decision` rejects empty `reason`.
+         - `review_decision` rejects missing or empty merged review output.
+         - `review_decision` rejects missing or invalid adjudication memory.
+         - `review_decision` still accepts extra JSON fields; do not add hard validation
+           that rejects extra fields for this output.
+         - `loop_detector` accepts `continue` and `human_review`.
+         - `loop_detector` rejects invalid `next_action` and empty `reason`.
+         - `loop_detector` still accepts extra JSON fields; do not add hard validation
+           that rejects extra fields for this output.
+         - `autonomy_decision` requires non-empty `resume_feedback` for `auto_resolve`.
+         - `autonomy_decision` requires empty `resume_feedback` for `human_review`.
+         - `autonomy_decision` rejects unsupported extra JSON fields.
+         - `autonomy_decision` rejects missing, empty, or incorrectly titled decision reports.
+
+      Implementation constraints:
+      - Do not call `opencode` or instantiate a real OpenCode run.
+      - Do not add integration tests in this job.
+      - Keep tests deterministic and runnable with `uv run pytest`.
+      - If pytest is not configured yet, update `pyproject.toml` with a dev dependency
+        group and pytest settings as needed.
+      - Preserve existing project behavior; tests should encode current behavior,
+        especially that review_decision and loop_detector allow extra JSON fields.
+
+      Verification:
+      - Run `uv run pytest`.
+      - Run `uv run python -m compileall main.py agentflow_core`.
+      - Report what tests were added and any important coverage gaps left for later.
+    human_review: |
+      Please extend the first-layer unit tests for `agentflow_core.workflow_steps`.
+
+      Current focus:
+      - The existing validation tests are useful, but `workflow_steps.py` can get
+        better unit coverage without invoking real OpenCode.
+      - Do not chase coverage by adding brittle integration-style tests.
+
+      Add pure unit tests for path rendering helpers:
+      - `render_output_path_template` should cover all supported variables:
+        `${agent_key}`, `${agent_output_name}`, `${topic}`, `${cycle_number}`,
+        `${iteration_number}`, and `${job_temp_dir}`.
+      - `render_agent_output_path` should verify that the agent's `output_name`
+        is used.
+      - `render_review_decision_merged_review_output_path` should render the
+        configured merged review path.
+      - `render_autonomy_decision_report_output_path` should render the configured
+        decision report path.
+      - `render_adjudication_memory_output_path` should point to
+        `adjudication-memory.latest.txt` inside the job temp directory.
+
+      Add pure unit tests for common prompt variables:
+      - `build_common_prompt_vars` without `human_review` should expose the
+        original task and set `human_review` to an empty string.
+      - `build_common_prompt_vars` with `human_review` should append the human
+        feedback to `task` and expose the raw `human_review` value.
+      - Assert key generated output-path variables are present and point under
+        the job temp directory.
+
+      Add lightweight retry-wrapper tests for `run_agent_step_with_output_retry`:
+      - Use a fake runner object with a `run(agent_key, prompt)` method; do not
+        call real OpenCode.
+      - Verify success on the first attempt.
+      - Verify retry after a loader raises `WorkflowError`, then success on a
+        later attempt.
+      - Verify failure after retries are exhausted.
+      - Verify stale primary and extra output files are removed before retry.
+
+      Coverage expectation:
+      - Aim to raise `agentflow_core.workflow_steps` coverage to roughly 70% or
+        higher using pure unit tests.
+      - Do not add tests for full real agent execution paths in this job.
+      - Leave deeper orchestration tests for a later testing layer.
+    status: done

@@ -27,17 +27,18 @@ If this file conflicts with `README.md` or the actual code behavior, treat `READ
 ## Run Command
 
 ```bash
-python3 main.py --config example.config.workflow.yaml --jobs example.jobs.yaml
+uv run agentflow --config example.config.workflow.yaml --jobs example.jobs.yaml
 ```
 
 ## Python / Tooling Context
 
-- This project is a Python CLI. `pyproject.toml` currently declares `requires-python = ">=3.11"`; the main dependency is `pyyaml`.
+- This project is a Python CLI. `pyproject.toml` currently declares `requires-python = ">=3.11"`; the main runtime dependency is `pyyaml`, and the dev dependency group includes `pytest`.
 - The repo contains `uv.lock`; local development should prefer `uv` or the project virtual environment.
 - If the system Python lacks dependencies, try:
 
 ```bash
-uv run python main.py --help
+uv sync --group dev
+uv run agentflow --help
 ```
 
 or, with an existing virtual environment:
@@ -46,12 +47,16 @@ or, with an existing virtual environment:
 .venv/bin/python main.py --help
 ```
 
-- After changing Python code, run at least syntax/import-level validation:
+- After changing Python code, run at least:
 
 ```bash
-.venv/bin/python -m compileall main.py agentflow_core
-.venv/bin/python main.py --help
+uv run python -m compileall main.py agentflow_core
+uv run pytest
+uv run agentflow --help
 ```
+
+- The current first-layer unit tests live under `tests/` and focus on pure Python logic: config loading/validation, workflow IO, and workflow step output validation. They must not call real OpenCode, model providers, network services, or external systems.
+- If you are only changing docs or prompt text, run the most relevant lightweight checks, but do not skip `uv run pytest` after Python behavior changes.
 
 ## Coding Standards and Implementation Conventions
 
@@ -66,7 +71,7 @@ or, with an existing virtual environment:
 - Validate configuration early and strictly. Configuration problems should raise `ConfigError`, and error messages should include YAML field paths where possible. Do not silently accept malformed config.
 - Prompt rendering should go through `render_prompt` / `string.Template`. When adding prompt variables, prefer centralizing common variables in `build_common_prompt_vars`; inject only step-specific variables in the relevant step.
 - Agent outputs are file artifacts. Do not infer business results from model stdout. A step should follow the pattern: render output paths -> render prompt -> invoke agent -> read and validate output.
-- JSON outputs must be strictly validated. If adding or changing `next_action` values or JSON schemas, update `workflow_constants.py`, the relevant validators, prompt templates, README, and examples together.
+- JSON outputs must be validated according to the current validators. If adding or changing `next_action` values or JSON schemas, update `workflow_constants.py`, the relevant validators, prompt templates, README/docs, examples, and tests together. Note: `review_decision` and `loop_detector` currently allow extra JSON fields even though prompts ask agents not to emit them; do not add hard extra-field rejection unless explicitly requested.
 - Keep OpenCode invocation encapsulated in `OpencodeRunner` / `session_store`. Workflow orchestration layers should not scatter direct `subprocess` calls.
 - Use `log_step`, `log_verbose`, and `log_raw_event` for logging. Avoid ad hoc `print` calls except for final CLI JSON output and error output.
 - Keep exception types clear: configuration problems use `ConfigError`, workflow/agent output problems use `WorkflowError`, and OpenCode invocation problems use `OpencodeError`.

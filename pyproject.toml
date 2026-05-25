@@ -29,6 +29,16 @@ Documentation = "https://github.com/LuWangStudio/council-agentflow#readme"
 [project.scripts]
 agentflow = "agentflow_core.cli:main"
 
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=7.0.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
 [build-system]
 requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
