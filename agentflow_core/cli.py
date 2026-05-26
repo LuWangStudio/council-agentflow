@@ -26,7 +26,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--prompt-pack-path",
         help=(
-            "Prompt pack directory or pack.yaml path; overrides "
+            "Prompt packs directory containing <program.prompt_pack>/pack.yaml; overrides "
             "program.prompt_pack_path from YAML."
         ),
     )

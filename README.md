@@ -101,7 +101,7 @@ Common arguments:
 
 - `--config`: shared workflow configuration; contains `program` and `agents`.
 - `--jobs`: project-specific jobs file; contains `jobs`.
-- `--prompt-pack-path`: optional prompt pack directory or `pack.yaml`; overrides `program.prompt_pack_path`.
+- `--prompt-pack-path`: optional prompt packs directory containing `<prompt_pack>/pack.yaml`; overrides `program.prompt_pack_path`.
 - `--verbose`: print rendered prompts and raw OpenCode JSON events.
 - `--quiet`: suppress progress logs and print only errors plus final JSON.
 
@@ -147,7 +147,7 @@ The built-in prompt packs are:
 - `implementation`: code implementation, scripts, tests, and bug fixes;
 - `planning`: solution design, execution planning, documentation drafts, and architecture/process work.
 
-You can also provide a custom prompt pack with `program.prompt_pack_path` or `--prompt-pack-path`; custom packs still use the fixed agent slots.
+You can also provide a custom prompt packs directory with `program.prompt_pack_path` or `--prompt-pack-path`; the selected pack is resolved as `<prompt_pack_path>/<program.prompt_pack>/pack.yaml`, and custom packs still use the fixed agent slots.
 
 For full configuration defaults, prompt-pack resolution, agent slots, variant priority, and job behavior, see [`docs/configuration.md`](docs/configuration.md).
 

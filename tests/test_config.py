@@ -31,7 +31,7 @@ REQUIRED_AGENT_KEYS = (
 def create_prompt_pack(
     base_dir: Path,
     *,
-    name: str = "prompt-pack",
+    name: str = DEFAULT_PROMPT_PACK,
     role_prefix: str = "test",
 ) -> Path:
     pack_dir = base_dir / name
@@ -83,7 +83,9 @@ def write_workflow_config(
     program_overrides: dict[str, Any] | None = None,
     agents: dict[str, dict[str, Any]] | None = None,
 ) -> Path:
-    program: dict[str, Any] = {"prompt_pack_path": str(prompt_pack_dir)}
+    program: dict[str, Any] = {"prompt_pack_path": str(prompt_pack_dir.parent)}
+    if prompt_pack_dir.name != DEFAULT_PROMPT_PACK:
+        program["prompt_pack"] = prompt_pack_dir.name
     if program_overrides:
         program.update(program_overrides)
     return write_yaml(
@@ -162,14 +164,19 @@ def test_resolves_builtin_prompt_pack_when_no_explicit_path(tmp_path: Path) -> N
 def test_cli_prompt_pack_path_overrides_program_prompt_pack_path(
     tmp_path: Path,
 ) -> None:
+    pack_name = "shared-pack"
+    program_root = tmp_path / "program-root"
+    program_root.mkdir()
+    cli_root = tmp_path / "cli-root"
+    cli_root.mkdir()
     program_pack_dir = create_prompt_pack(
-        tmp_path,
-        name="program-pack",
+        program_root,
+        name=pack_name,
         role_prefix="program",
     )
     cli_pack_dir = create_prompt_pack(
-        tmp_path,
-        name="cli-pack",
+        cli_root,
+        name=pack_name,
         role_prefix="cli",
     )
     config_path = write_workflow_config(tmp_path, program_pack_dir)
@@ -181,7 +188,7 @@ def test_cli_prompt_pack_path_overrides_program_prompt_pack_path(
     workflow_config = load_workflow_config(
         config_path,
         jobs_path,
-        prompt_pack_path=cli_pack_dir / "pack.yaml",
+        prompt_pack_path=cli_root,
     )
 
     assert workflow_config.prompt_pack_dir == cli_pack_dir.resolve()
@@ -273,7 +280,10 @@ def test_relative_program_prompt_pack_path_resolves_from_config_dir(
     config_path = write_yaml(
         tmp_path / "workflow.yaml",
         {
-            "program": {"prompt_pack_path": "packs/relative-pack"},
+            "program": {
+                "prompt_pack": "relative-pack",
+                "prompt_pack_path": "packs",
+            },
             "agents": base_agents(),
         },
     )
@@ -289,12 +299,12 @@ def test_relative_program_prompt_pack_path_resolves_from_config_dir(
 
 
 def test_explicit_prompt_pack_path_requires_pack_yaml(tmp_path: Path) -> None:
-    missing_pack_dir = tmp_path / "missing-pack"
-    missing_pack_dir.mkdir()
+    missing_packs_dir = tmp_path / "missing-packs"
+    missing_packs_dir.mkdir()
     config_path = write_yaml(
         tmp_path / "workflow.yaml",
         {
-            "program": {"prompt_pack_path": str(missing_pack_dir)},
+            "program": {"prompt_pack_path": str(missing_packs_dir)},
             "agents": base_agents(),
         },
     )
@@ -341,7 +351,7 @@ def test_agents_section_must_be_a_mapping(tmp_path: Path) -> None:
     config_path = write_yaml(
         tmp_path / "workflow.yaml",
         {
-            "program": {"prompt_pack_path": str(prompt_pack_dir)},
+            "program": {"prompt_pack_path": str(prompt_pack_dir.parent)},
             "agents": "not-a-mapping",
         },
     )

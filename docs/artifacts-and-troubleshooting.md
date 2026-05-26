@@ -149,7 +149,7 @@ Check that:
 
 Check `program.prompt_pack`, `program.prompt_pack_path`, or `--prompt-pack-path`.
 
-An explicit prompt pack path must point to a directory containing `pack.yaml`, or directly to a `pack.yaml` file.
+An explicit prompt pack path must point to a prompt packs directory containing `<program.prompt_pack>/pack.yaml`.
 
 ### Agent output schema failures
 

@@ -174,6 +174,7 @@ def _builtin_prompts_dir() -> Path:
 def _resolve_explicit_prompt_pack_dir(
     prompt_pack_path: str,
     *,
+    prompt_pack: str,
     base_dir: Path,
     field_name: str,
 ) -> Path:
@@ -183,12 +184,11 @@ def _resolve_explicit_prompt_pack_dir(
     else:
         candidate = candidate.resolve()
 
-    pack_yaml_path = (
-        candidate if candidate.name == "pack.yaml" else candidate / "pack.yaml"
-    )
+    pack_yaml_path = candidate / prompt_pack / "pack.yaml"
     if not pack_yaml_path.is_file():
         raise ConfigError(
-            f"`{field_name}` must point to a prompt pack directory or pack.yaml; "
+            f"`{field_name}` must point to a prompt packs directory containing "
+            f"'{prompt_pack}/pack.yaml'; "
             f"missing file: {pack_yaml_path}"
         )
     return pack_yaml_path.parent
@@ -205,6 +205,7 @@ def _resolve_prompt_pack_dir(
     if explicit_prompt_pack_path is not None:
         return _resolve_explicit_prompt_pack_dir(
             explicit_prompt_pack_path,
+            prompt_pack=prompt_pack,
             base_dir=explicit_prompt_pack_path_base_dir,
             field_name=explicit_prompt_pack_path_field_name,
         )
@@ -225,7 +226,7 @@ def _resolve_prompt_pack_dir(
     )
     raise ConfigError(
         f"Prompt pack '{prompt_pack}' was not found. Searched:\n{searched}\n"
-        "Use `program.prompt_pack_path` or `--prompt-pack-path` to point to a custom prompt pack."
+        "Use `program.prompt_pack_path` or `--prompt-pack-path` to point to a custom prompt packs directory."
     )
 
 

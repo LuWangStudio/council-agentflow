@@ -89,16 +89,16 @@ Prompt files are resolved independently from the config file location.
 
 Resolution order:
 
-1. `--prompt-pack-path`, if provided;
-2. `program.prompt_pack_path`, if provided;
+1. `--prompt-pack-path/<program.prompt_pack>`, if `--prompt-pack-path` is provided;
+2. `program.prompt_pack_path/<program.prompt_pack>`, if `program.prompt_pack_path` is provided;
 3. `prompts/<program.prompt_pack>` next to the config file, if it contains `pack.yaml`;
 4. built-in `prompts/<program.prompt_pack>` next to `main.py`.
 
-`program.prompt_pack_path` may point to a prompt pack directory or directly to its `pack.yaml`. Relative paths are resolved from the config file directory.
+`program.prompt_pack_path` must point to a prompt packs directory whose child directory named by `program.prompt_pack` contains `pack.yaml`. For example, with `program.prompt_pack: implementation`, `program.prompt_pack_path: prompts` resolves to `prompts/implementation/pack.yaml`. Relative paths are resolved from the config file directory.
 
 CLI `--prompt-pack-path` has the same format and overrides `program.prompt_pack_path`. Relative CLI paths are resolved from the current working directory.
 
-An explicitly provided prompt pack path is strict: if it does not contain `pack.yaml`, loading fails instead of silently falling back.
+An explicitly provided prompt packs path is strict: if `<path>/<program.prompt_pack>/pack.yaml` does not exist, loading fails instead of silently falling back.
 
 ## Prompt and role overrides
 
