@@ -147,6 +147,8 @@ The built-in prompt packs are:
 - `implementation`: code implementation, scripts, tests, and bug fixes;
 - `planning`: solution design, execution planning, documentation drafts, and architecture/process work.
 
+If `program.prompt_pack_path` and `--prompt-pack-path` are omitted, built-in packs are resolved from `prompts/en/<prompt_pack>`.
+
 You can also provide a custom prompt packs directory with `program.prompt_pack_path` or `--prompt-pack-path`; the selected pack is resolved as `<prompt_pack_path>/<program.prompt_pack>/pack.yaml`, and custom packs still use the fixed agent slots.
 
 For full configuration defaults, prompt-pack resolution, agent slots, variant priority, and job behavior, see [`docs/configuration.md`](docs/configuration.md).

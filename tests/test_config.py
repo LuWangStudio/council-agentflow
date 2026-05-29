@@ -158,6 +158,7 @@ def test_resolves_builtin_prompt_pack_when_no_explicit_path(tmp_path: Path) -> N
     workflow_config = load_workflow_config(config_path, jobs_path)
 
     assert workflow_config.prompt_pack_dir.name == "implementation"
+    assert workflow_config.prompt_pack_dir.parent.name == "en"
     assert workflow_config.agents["execution"].prompt_template
 
 

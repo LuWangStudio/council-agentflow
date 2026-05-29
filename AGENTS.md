@@ -19,8 +19,10 @@ Before making changes, read:
 
 1. `README.md`: project behavior, run commands, prompt packs, autonomy decision, loop detector, jobs behavior, and output directory behavior.
 2. If changing prompt behavior, also read the relevant prompt pack directories:
-   - `prompts/implementation/`
-   - `prompts/planning/`
+   - `prompts/en/implementation/`
+   - `prompts/en/planning/`
+   - `prompts/cn/implementation/`
+   - `prompts/cn/planning/`
 
 If this file conflicts with `README.md` or the actual code behavior, treat `README.md` and the code as authoritative. Update this file when needed.
 
@@ -100,5 +102,5 @@ uv run agentflow --help
 ## Common Change Entry Points
 
 - Workflow / orchestration behavior: start with `main.py` and `agentflow_core/`.
-- Prompt pack or agent role semantics: check `prompts/<pack>/pack.yaml` and the corresponding `.md` prompt files.
+- Prompt pack or agent role semantics: check `prompts/<language>/<pack>/pack.yaml` and the corresponding `.md` prompt files.
 - Sample config or jobs behavior: check `example.config.workflow.yaml`, `example.jobs.yaml`, and `README.md`.

@@ -212,8 +212,8 @@ def _resolve_prompt_pack_dir(
 
     search_dirs: list[Path] = []
     for candidate in (
-        (config_dir / "prompts" / prompt_pack).resolve(),
-        (_builtin_prompts_dir() / prompt_pack).resolve(),
+        (config_dir / "prompts" / "en" / prompt_pack).resolve(),
+        (_builtin_prompts_dir() / "en" / prompt_pack).resolve(),
     ):
         if candidate not in search_dirs:
             search_dirs.append(candidate)

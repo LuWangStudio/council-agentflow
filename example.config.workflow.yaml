@@ -6,9 +6,11 @@ program:
   # prompt_pack: implementation
   prompt_pack: planning
 
-  # Optional: explicit prompt pack directory or pack.yaml path.
-  # If omitted, this falls back to the built-in prompts/<prompt_pack> next to main.py.
-  # prompt_pack_path: /absolute/path/to/prompts/planning
+  # Optional: prompt packs root directory.
+  # The selected pack is resolved as <prompt_pack_path>/<prompt_pack>/pack.yaml.
+  # If omitted, this falls back to prompts/en/<prompt_pack> next to this config,
+  # then to the built-in prompts/en/<prompt_pack> next to main.py.
+  # prompt_pack_path: /absolute/path/to/prompts
 
   max_rounds: 3
   max_iterations_per_cycle: 50

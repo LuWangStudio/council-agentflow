@@ -66,22 +66,22 @@ The `planning` pack is intended for solution design, execution planning, documen
 - `reviewer_1` maps to `reviewer-completeness`
 - `reviewer_2` maps to `reviewer-risk`
 
-Default prompt pack layout:
+Default English prompt pack layout:
 
-- `prompts/implementation/pack.yaml`
-- `prompts/implementation/execution.md`
-- `prompts/implementation/reviewer-requirements.md`
-- `prompts/implementation/reviewer-quality.md`
-- `prompts/implementation/review-decision.md`
-- `prompts/implementation/autonomy-decision.md`
-- `prompts/implementation/loop-detector.md`
-- `prompts/planning/pack.yaml`
-- `prompts/planning/execution.md`
-- `prompts/planning/reviewer-completeness.md`
-- `prompts/planning/reviewer-risk.md`
-- `prompts/planning/review-decision.md`
-- `prompts/planning/autonomy-decision.md`
-- `prompts/planning/loop-detector.md`
+- `prompts/en/implementation/pack.yaml`
+- `prompts/en/implementation/execution.md`
+- `prompts/en/implementation/reviewer-requirements.md`
+- `prompts/en/implementation/reviewer-quality.md`
+- `prompts/en/implementation/review-decision.md`
+- `prompts/en/implementation/autonomy-decision.md`
+- `prompts/en/implementation/loop-detector.md`
+- `prompts/en/planning/pack.yaml`
+- `prompts/en/planning/execution.md`
+- `prompts/en/planning/reviewer-completeness.md`
+- `prompts/en/planning/reviewer-risk.md`
+- `prompts/en/planning/review-decision.md`
+- `prompts/en/planning/autonomy-decision.md`
+- `prompts/en/planning/loop-detector.md`
 
 ## Prompt pack resolution
 
@@ -91,10 +91,10 @@ Resolution order:
 
 1. `--prompt-pack-path/<program.prompt_pack>`, if `--prompt-pack-path` is provided;
 2. `program.prompt_pack_path/<program.prompt_pack>`, if `program.prompt_pack_path` is provided;
-3. `prompts/<program.prompt_pack>` next to the config file, if it contains `pack.yaml`;
-4. built-in `prompts/<program.prompt_pack>` next to `main.py`.
+3. `prompts/en/<program.prompt_pack>` next to the config file, if it contains `pack.yaml`;
+4. built-in `prompts/en/<program.prompt_pack>` next to `main.py`.
 
-`program.prompt_pack_path` must point to a prompt packs directory whose child directory named by `program.prompt_pack` contains `pack.yaml`. For example, with `program.prompt_pack: implementation`, `program.prompt_pack_path: prompts` resolves to `prompts/implementation/pack.yaml`. Relative paths are resolved from the config file directory.
+`program.prompt_pack_path` must point to a prompt packs directory whose child directory named by `program.prompt_pack` contains `pack.yaml`. For example, with `program.prompt_pack: implementation`, `program.prompt_pack_path: prompts/en` resolves to `prompts/en/implementation/pack.yaml`, while `program.prompt_pack_path: prompts/cn` resolves to `prompts/cn/implementation/pack.yaml`. Relative paths are resolved from the config file directory.
 
 CLI `--prompt-pack-path` has the same format and overrides `program.prompt_pack_path`. Relative CLI paths are resolved from the current working directory.
 
