@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
+import re
 from typing import Callable, TypeVar
 
 import pytest
@@ -16,6 +18,7 @@ from agentflow_core.workflow_steps import (
     render_output_path_template,
     render_review_decision_merged_review_output_path,
     run_agent_step_with_output_retry,
+    run_execution_step,
 )
 
 
@@ -33,6 +36,15 @@ class FakeRunner:
         self.path_states_before_run.append(
             {path: path.exists() for path in self._observed_paths}
         )
+
+
+class OutputWritingRunner(FakeRunner):
+    def run(self, agent_key: str, prompt: str) -> None:
+        super().run(agent_key, prompt)
+        match = re.search(r"^output=(.+)$", prompt, flags=re.MULTILINE)
+        assert match is not None
+        output_path = Path(match.group(1))
+        output_path.write_text("execution output\n", encoding="utf-8")
 
 
 def make_agent(
@@ -254,6 +266,84 @@ def test_build_common_prompt_vars_with_human_review_appends_feedback(
     assert str(prompt_vars["task"]).startswith("Original task text.\n\nHuman feedback")
     assert human_review in str(prompt_vars["task"])
     assert prompt_vars["human_review"] == human_review
+
+
+def test_run_execution_step_prompts_with_absolute_previous_review_paths(
+    tmp_path: Path,
+) -> None:
+    workflow_config = make_workflow_config(tmp_path)
+    workflow_config.agents["execution"] = replace(
+        workflow_config.agents["execution"],
+        prompt_template=(
+            "output=${agent_output_path}\n"
+            "previous_json=${review_decision_previous_output_path}\n"
+            "previous_review=${review_decision_previous_review_output_path}\n"
+        ),
+    )
+    previous_json_relative = Path(".agentflow-temp/runs/run-1/topic/review.json")
+    previous_review_relative = Path(
+        ".agentflow-temp/runs/run-1/topic/review.review.txt"
+    )
+    previous_json_absolute = tmp_path / previous_json_relative
+    previous_review_absolute = tmp_path / previous_review_relative
+    previous_json_absolute.parent.mkdir(parents=True)
+    previous_json_absolute.write_text(
+        '{"next_action":"rerun_execution"}\n',
+        encoding="utf-8",
+    )
+    previous_review_absolute.write_text(
+        "[CLOSABLE_ACCEPTANCE_ITEMS]\n1. Fix it\n",
+        encoding="utf-8",
+    )
+    runner = OutputWritingRunner()
+
+    output_path, text = run_execution_step(
+        workflow_config,
+        runner,  # type: ignore[arg-type]
+        job=make_job(),
+        job_temp_dir=tmp_path / "job-temp",
+        cycle_number=1,
+        iteration_number=2,
+        review_decision_previous_output_path=previous_json_relative,
+        review_decision_previous_review_output_path=previous_review_relative,
+    )
+
+    assert text == "execution output\n"
+    assert output_path == (
+        tmp_path / "job-temp" / "execution-out-cycle-1-iteration-2.txt"
+    ).resolve()
+    prompt = runner.calls[0][1]
+    assert f"previous_json={previous_json_absolute.resolve()}" in prompt
+    assert f"previous_review={previous_review_absolute.resolve()}" in prompt
+
+
+def test_run_execution_step_rejects_missing_previous_review_path(
+    tmp_path: Path,
+) -> None:
+    workflow_config = make_workflow_config(tmp_path)
+    workflow_config.agents["execution"] = replace(
+        workflow_config.agents["execution"],
+        prompt_template="output=${agent_output_path}\n",
+    )
+    previous_json = tmp_path / "previous-review.json"
+    previous_json.write_text('{"next_action":"rerun_execution"}\n', encoding="utf-8")
+    runner = OutputWritingRunner()
+
+    with pytest.raises(WorkflowError, match="previous review-decision merged review"):
+        run_execution_step(
+            workflow_config,
+            runner,  # type: ignore[arg-type]
+            job=make_job(),
+            job_temp_dir=tmp_path / "job-temp",
+            cycle_number=1,
+            iteration_number=2,
+            review_decision_previous_output_path=previous_json,
+            review_decision_previous_review_output_path=(
+                tmp_path / "missing.review.txt"
+            ),
+        )
+
+    assert runner.calls == []
 
 
 def run_with_loader(

@@ -70,6 +70,75 @@ def render_output_path_template(
     return Path(rendered).expanduser().resolve()
 
 
+def resolve_artifact_path(path: str | Path, *, base_dir: Path) -> Path:
+    """Return an absolute artifact path.
+
+    Agent prompt variables should never rely on the OpenCode agent's current
+    working directory. Most runtime paths are already absolute because they are
+    rendered from ``job_temp_dir``. This helper also handles older/in-memory
+    relative paths by resolving them from the jobs file directory, which is the
+    documented base for relative workflow temp paths.
+    """
+
+    candidate = Path(path).expanduser()
+    if not candidate.is_absolute():
+        candidate = base_dir / candidate
+    return candidate.resolve()
+
+
+def format_artifact_path_for_prompt(
+    path: str | Path | None,
+    *,
+    base_dir: Path,
+) -> str:
+    if path is None:
+        return ""
+    return str(resolve_artifact_path(path, base_dir=base_dir))
+
+
+def _require_existing_artifact(path: Path, *, description: str) -> None:
+    if not path.is_file():
+        raise WorkflowError(f"Expected {description} file does not exist: {path}")
+
+
+def _required_iteration_artifact_path(
+    iteration: dict[str, Any],
+    agent_key: str,
+    field_name: str,
+    *,
+    base_dir: Path,
+    description: str,
+) -> Path:
+    agent_state = iteration.get(agent_key)
+    if not isinstance(agent_state, dict) or field_name not in agent_state:
+        raise WorkflowError(
+            f"Missing {description} path in workflow iteration state"
+        )
+    raw_path = agent_state[field_name]
+    path = resolve_artifact_path(str(raw_path), base_dir=base_dir)
+    _require_existing_artifact(path, description=description)
+    return path
+
+
+def _optional_iteration_artifact_path(
+    iteration: dict[str, Any],
+    agent_key: str,
+    field_name: str,
+    *,
+    base_dir: Path,
+    description: str,
+) -> Path | None:
+    agent_state = iteration.get(agent_key)
+    if not isinstance(agent_state, dict):
+        return None
+    raw_path = agent_state.get(field_name)
+    if not raw_path:
+        return None
+    path = resolve_artifact_path(str(raw_path), base_dir=base_dir)
+    _require_existing_artifact(path, description=description)
+    return path
+
+
 def build_common_prompt_vars(
     workflow_config: WorkflowConfig,
     *,
@@ -78,6 +147,7 @@ def build_common_prompt_vars(
     cycle_number: int,
     iteration_number: int,
 ) -> dict[str, object]:
+    job_temp_dir = job_temp_dir.expanduser().resolve()
     task_text = job.task
     if job.human_review:
         task_text = (
@@ -267,6 +337,7 @@ def run_execution_step(
     review_decision_previous_output_path: Path | None,
     review_decision_previous_review_output_path: Path | None,
 ) -> tuple[Path, str]:
+    artifact_base_dir = workflow_config.jobs_path.parent
     agent = workflow_config.agents["execution"]
     agent_output_path = render_agent_output_path(
         agent,
@@ -275,6 +346,41 @@ def run_execution_step(
         iteration_number=iteration_number,
         job_temp_dir=job_temp_dir,
     )
+    previous_output_path = (
+        None
+        if review_decision_previous_output_path is None
+        else resolve_artifact_path(
+            review_decision_previous_output_path,
+            base_dir=artifact_base_dir,
+        )
+    )
+    previous_review_output_path = (
+        None
+        if review_decision_previous_review_output_path is None
+        else resolve_artifact_path(
+            review_decision_previous_review_output_path,
+            base_dir=artifact_base_dir,
+        )
+    )
+
+    if iteration_number > 1 and (
+        previous_output_path is None or previous_review_output_path is None
+    ):
+        raise WorkflowError(
+            "Execution iteration > 1 requires previous review-decision JSON "
+            "and merged review paths"
+        )
+    if previous_output_path is not None:
+        _require_existing_artifact(
+            previous_output_path,
+            description="previous review-decision JSON",
+        )
+    if previous_review_output_path is not None:
+        _require_existing_artifact(
+            previous_review_output_path,
+            description="previous review-decision merged review",
+        )
+
     prompt = render_prompt(
         agent.prompt_template,
         {
@@ -288,12 +394,16 @@ def run_execution_step(
             "agent_key": agent.key,
             "role_name": agent.role_name,
             "agent_output_path": str(agent_output_path),
-            "review_decision_previous_output_path": ""
-            if review_decision_previous_output_path is None
-            else str(review_decision_previous_output_path),
-            "review_decision_previous_review_output_path": ""
-            if review_decision_previous_review_output_path is None
-            else str(review_decision_previous_review_output_path),
+            "review_decision_previous_output_path": format_artifact_path_for_prompt(
+                previous_output_path,
+                base_dir=artifact_base_dir,
+            ),
+            "review_decision_previous_review_output_path": (
+                format_artifact_path_for_prompt(
+                    previous_review_output_path,
+                    base_dir=artifact_base_dir,
+                )
+            ),
         },
     )
     text = run_text_agent_step(
@@ -316,6 +426,15 @@ def run_review_step(
     iteration_number: int,
     execution_output_path: Path,
 ) -> tuple[Path, str]:
+    artifact_base_dir = workflow_config.jobs_path.parent
+    execution_output_path = resolve_artifact_path(
+        execution_output_path,
+        base_dir=artifact_base_dir,
+    )
+    _require_existing_artifact(
+        execution_output_path,
+        description="execution response",
+    )
     agent = workflow_config.agents[agent_key]
     agent_output_path = render_agent_output_path(
         agent,
@@ -360,6 +479,23 @@ def run_review_decision_step(
     reviewer_1_output_path: Path,
     reviewer_2_output_path: Path,
 ) -> tuple[Path, Path, dict[str, object]]:
+    artifact_base_dir = workflow_config.jobs_path.parent
+    reviewer_1_output_path = resolve_artifact_path(
+        reviewer_1_output_path,
+        base_dir=artifact_base_dir,
+    )
+    reviewer_2_output_path = resolve_artifact_path(
+        reviewer_2_output_path,
+        base_dir=artifact_base_dir,
+    )
+    _require_existing_artifact(
+        reviewer_1_output_path,
+        description="reviewer_1 output",
+    )
+    _require_existing_artifact(
+        reviewer_2_output_path,
+        description="reviewer_2 output",
+    )
     agent = workflow_config.agents["review_decision"]
     agent_output_path = render_agent_output_path(
         agent,
@@ -430,6 +566,7 @@ def run_autonomy_decision_step(
     latest_iteration: dict[str, Any],
     human_review_reason: str,
 ) -> tuple[Path, Path, dict[str, object]]:
+    artifact_base_dir = workflow_config.jobs_path.parent
     agent = workflow_config.agents["autonomy_decision"]
     agent_output_path = render_agent_output_path(
         agent,
@@ -448,10 +585,55 @@ def run_autonomy_decision_step(
     adjudication_memory_output_path = render_adjudication_memory_output_path(
         job_temp_dir=job_temp_dir
     )
-    loop_detector = latest_iteration.get("loop_detector")
-    latest_loop_detector_output_path = ""
-    if isinstance(loop_detector, dict):
-        latest_loop_detector_output_path = str(loop_detector.get("output_path", ""))
+    _require_existing_artifact(
+        adjudication_memory_output_path,
+        description="adjudication memory",
+    )
+    latest_execution_output_path = _required_iteration_artifact_path(
+        latest_iteration,
+        "execution",
+        "output_path",
+        base_dir=artifact_base_dir,
+        description="latest execution output",
+    )
+    latest_reviewer_1_output_path = _required_iteration_artifact_path(
+        latest_iteration,
+        "reviewer_1",
+        "output_path",
+        base_dir=artifact_base_dir,
+        description="latest reviewer_1 output",
+    )
+    latest_reviewer_2_output_path = _required_iteration_artifact_path(
+        latest_iteration,
+        "reviewer_2",
+        "output_path",
+        base_dir=artifact_base_dir,
+        description="latest reviewer_2 output",
+    )
+    latest_review_decision_output_path = _required_iteration_artifact_path(
+        latest_iteration,
+        "review_decision",
+        "output_path",
+        base_dir=artifact_base_dir,
+        description="latest review-decision JSON",
+    )
+    latest_merged_review_output_path = _required_iteration_artifact_path(
+        latest_iteration,
+        "review_decision",
+        "merged_review_output_path",
+        base_dir=artifact_base_dir,
+        description="latest merged review",
+    )
+    latest_loop_detector_output_path = format_artifact_path_for_prompt(
+        _optional_iteration_artifact_path(
+            latest_iteration,
+            "loop_detector",
+            "output_path",
+            base_dir=artifact_base_dir,
+            description="latest loop-detector JSON",
+        ),
+        base_dir=artifact_base_dir,
+    )
 
     prompt = render_prompt(
         agent.prompt_template,
@@ -468,21 +650,13 @@ def run_autonomy_decision_step(
             "agent_output_path": str(agent_output_path),
             "decision_report_output_path": str(decision_report_output_path),
             "human_review_reason": human_review_reason,
-            "latest_execution_output_path": str(
-                latest_iteration["execution"]["output_path"]
-            ),
-            "latest_reviewer_1_output_path": str(
-                latest_iteration["reviewer_1"]["output_path"]
-            ),
-            "latest_reviewer_2_output_path": str(
-                latest_iteration["reviewer_2"]["output_path"]
-            ),
+            "latest_execution_output_path": str(latest_execution_output_path),
+            "latest_reviewer_1_output_path": str(latest_reviewer_1_output_path),
+            "latest_reviewer_2_output_path": str(latest_reviewer_2_output_path),
             "latest_review_decision_output_path": str(
-                latest_iteration["review_decision"]["output_path"]
+                latest_review_decision_output_path
             ),
-            "latest_merged_review_output_path": str(
-                latest_iteration["review_decision"]["merged_review_output_path"]
-            ),
+            "latest_merged_review_output_path": str(latest_merged_review_output_path),
             "latest_loop_detector_output_path": latest_loop_detector_output_path,
             "adjudication_memory_output_path": str(adjudication_memory_output_path),
         },
@@ -513,6 +687,7 @@ def run_loop_detector_step(
     previous_iteration: dict[str, Any],
     current_iteration: dict[str, Any],
 ) -> tuple[Path, dict[str, object]]:
+    artifact_base_dir = workflow_config.jobs_path.parent
     agent = workflow_config.agents["loop_detector"]
     agent_output_path = render_agent_output_path(
         agent,
@@ -523,6 +698,80 @@ def run_loop_detector_step(
     )
     adjudication_memory_output_path = render_adjudication_memory_output_path(
         job_temp_dir=job_temp_dir
+    )
+    _require_existing_artifact(
+        adjudication_memory_output_path,
+        description="adjudication memory",
+    )
+    previous_execution_output_path = _required_iteration_artifact_path(
+        previous_iteration,
+        "execution",
+        "output_path",
+        base_dir=artifact_base_dir,
+        description="previous execution output",
+    )
+    previous_reviewer_1_output_path = _required_iteration_artifact_path(
+        previous_iteration,
+        "reviewer_1",
+        "output_path",
+        base_dir=artifact_base_dir,
+        description="previous reviewer_1 output",
+    )
+    previous_reviewer_2_output_path = _required_iteration_artifact_path(
+        previous_iteration,
+        "reviewer_2",
+        "output_path",
+        base_dir=artifact_base_dir,
+        description="previous reviewer_2 output",
+    )
+    previous_review_decision_output_path = _required_iteration_artifact_path(
+        previous_iteration,
+        "review_decision",
+        "output_path",
+        base_dir=artifact_base_dir,
+        description="previous review-decision JSON",
+    )
+    previous_merged_review_output_path = _required_iteration_artifact_path(
+        previous_iteration,
+        "review_decision",
+        "merged_review_output_path",
+        base_dir=artifact_base_dir,
+        description="previous merged review",
+    )
+    current_execution_output_path = _required_iteration_artifact_path(
+        current_iteration,
+        "execution",
+        "output_path",
+        base_dir=artifact_base_dir,
+        description="current execution output",
+    )
+    current_reviewer_1_output_path = _required_iteration_artifact_path(
+        current_iteration,
+        "reviewer_1",
+        "output_path",
+        base_dir=artifact_base_dir,
+        description="current reviewer_1 output",
+    )
+    current_reviewer_2_output_path = _required_iteration_artifact_path(
+        current_iteration,
+        "reviewer_2",
+        "output_path",
+        base_dir=artifact_base_dir,
+        description="current reviewer_2 output",
+    )
+    current_review_decision_output_path = _required_iteration_artifact_path(
+        current_iteration,
+        "review_decision",
+        "output_path",
+        base_dir=artifact_base_dir,
+        description="current review-decision JSON",
+    )
+    current_merged_review_output_path = _required_iteration_artifact_path(
+        current_iteration,
+        "review_decision",
+        "merged_review_output_path",
+        base_dir=artifact_base_dir,
+        description="current merged review",
     )
 
     prompt = render_prompt(
@@ -538,35 +787,23 @@ def run_loop_detector_step(
             "agent_key": agent.key,
             "role_name": agent.role_name,
             "agent_output_path": str(agent_output_path),
-            "previous_execution_output_path": str(
-                previous_iteration["execution"]["output_path"]
-            ),
-            "previous_reviewer_1_output_path": str(
-                previous_iteration["reviewer_1"]["output_path"]
-            ),
-            "previous_reviewer_2_output_path": str(
-                previous_iteration["reviewer_2"]["output_path"]
-            ),
+            "previous_execution_output_path": str(previous_execution_output_path),
+            "previous_reviewer_1_output_path": str(previous_reviewer_1_output_path),
+            "previous_reviewer_2_output_path": str(previous_reviewer_2_output_path),
             "previous_review_decision_output_path": str(
-                previous_iteration["review_decision"]["output_path"]
+                previous_review_decision_output_path
             ),
             "previous_merged_review_output_path": str(
-                previous_iteration["review_decision"]["merged_review_output_path"]
+                previous_merged_review_output_path
             ),
-            "current_execution_output_path": str(
-                current_iteration["execution"]["output_path"]
-            ),
-            "current_reviewer_1_output_path": str(
-                current_iteration["reviewer_1"]["output_path"]
-            ),
-            "current_reviewer_2_output_path": str(
-                current_iteration["reviewer_2"]["output_path"]
-            ),
+            "current_execution_output_path": str(current_execution_output_path),
+            "current_reviewer_1_output_path": str(current_reviewer_1_output_path),
+            "current_reviewer_2_output_path": str(current_reviewer_2_output_path),
             "current_review_decision_output_path": str(
-                current_iteration["review_decision"]["output_path"]
+                current_review_decision_output_path
             ),
             "current_merged_review_output_path": str(
-                current_iteration["review_decision"]["merged_review_output_path"]
+                current_merged_review_output_path
             ),
             "adjudication_memory_output_path": str(adjudication_memory_output_path),
         },
