@@ -18,7 +18,10 @@ classifiers = [
     "Topic :: Software Development :: Quality Assurance",
 ]
 dependencies = [
+    "matplotlib>=3.10.9",
+    "pandas>=3.0.3",
     "pyyaml>=6.0.3",
+    "seaborn>=0.13.2",
 ]
 
 [project.urls]
