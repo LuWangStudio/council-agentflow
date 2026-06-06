@@ -30,6 +30,22 @@ PLOT_GROUPS = (
     ("Input / Cache Read Tokens", ("input", "cache_read")),
     ("Output / Reasoning Tokens", ("output", "reasoning")),
 )
+RATIO_PLOTS = (
+    (
+        "Reasoning / Output Ratio",
+        "Reasoning / Output",
+        "reasoning",
+        "output",
+        "percent",
+    ),
+    (
+        "Cache Read / Input Ratio",
+        "Cache Read / Input",
+        "cache_read",
+        "input",
+        "multiple",
+    ),
+)
 METRIC_LABELS = {
     "input": "Input",
     "cache_read": "Cache Read",
@@ -38,6 +54,7 @@ METRIC_LABELS = {
 }
 DEFAULT_DATABASE = Path.home() / ".local" / "share" / "opencode" / "opencode.db"
 DEFAULT_OUTPUT_DIR = Path("temp-dir")
+ROLLING_WINDOW_DAYS = 7
 
 
 def parse_args() -> argparse.Namespace:
@@ -59,6 +76,11 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_DATABASE,
         help="OpenCode SQLite database path. Defaults to ~/.local/share/opencode/opencode.db.",
     )
+    parser.add_argument(
+        "--ratio",
+        action="store_true",
+        help="Plot ratio charts instead of raw token charts.",
+    )
     return parser.parse_args()
 
 
@@ -67,15 +89,37 @@ def safe_filename_part(value: str) -> str:
     return sanitized or "workspace"
 
 
-def output_path(workspace: str) -> Path:
+def output_path(workspace: str, *, ratio: bool) -> Path:
     DEFAULT_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     workspace_name = safe_filename_part(display_workspace(workspace))
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-    return DEFAULT_OUTPUT_DIR / f"daily-tokens-{workspace_name}-{timestamp}.png"
+    name_parts = ["daily-tokens", workspace_name]
+    if ratio:
+        name_parts.append("ratio")
+    name_parts.append(timestamp)
+    return DEFAULT_OUTPUT_DIR / f"{'-'.join(name_parts)}.png"
 
 
 def token_formatter(value: float, _position: int) -> str:
     return f"{value:,.0f}"
+
+
+def percent_formatter(value: float, _position: int) -> str:
+    return f"{value:.0%}"
+
+
+def multiple_formatter(value: float, _position: int) -> str:
+    return f"{value:,.1f}x"
+
+
+def format_ratio(value: float, format_kind: str) -> str:
+    if pd.isna(value):
+        return "n/a"
+    if format_kind == "percent":
+        return f"{value:.1%}"
+    if format_kind == "multiple":
+        return f"{value:,.2f}x"
+    return f"{value:,.3f}"
 
 
 def since_day(since_timestamp: float | None) -> pd.Timestamp | None:
@@ -100,7 +144,9 @@ def daily_tokens_dataframe(
         if pd.isna(date):
             continue
         row = {"date": date}
-        row.update({metric: float(day_summary.get(metric, 0)) for metric in PLOT_METRICS})
+        row.update(
+            {metric: float(day_summary.get(metric, 0)) for metric in PLOT_METRICS}
+        )
         rows.append(row)
 
     if not rows:
@@ -127,6 +173,23 @@ def daily_tokens_dataframe(
         ordered=True,
     )
     return data
+
+
+def daily_ratio_dataframe(data: pd.DataFrame) -> pd.DataFrame:
+    if data.empty:
+        return pd.DataFrame(columns=["date", "metric", "ratio"])
+
+    wide = data.pivot(index="date", columns="metric", values="tokens")
+    rows = []
+    for _title, label, numerator_metric, denominator_metric, _format_kind in RATIO_PLOTS:
+        numerator = wide[METRIC_LABELS[numerator_metric]]
+        denominator = wide[METRIC_LABELS[denominator_metric]]
+        ratio = numerator.divide(denominator.where(denominator != 0))
+        rows.extend(
+            {"date": date, "metric": label, "ratio": value}
+            for date, value in ratio.items()
+        )
+    return pd.DataFrame(rows)
 
 
 def figure_width(day_count: int) -> float:
@@ -169,13 +232,55 @@ def add_metric_totals(axis: plt.Axes, data: pd.DataFrame, labels: list[str]) -> 
     )
 
 
-def plot_daily_tokens(data: pd.DataFrame, *, workspace: str, destination: Path) -> None:
+def add_ratio_summary(
+    axis: plt.Axes,
+    data: pd.DataFrame,
+    *,
+    numerator_metric: str,
+    denominator_metric: str,
+    format_kind: str,
+) -> None:
+    numerator_label = METRIC_LABELS[numerator_metric]
+    denominator_label = METRIC_LABELS[denominator_metric]
+    numerator_total = data.loc[data["metric"] == numerator_label, "tokens"].sum()
+    denominator_total = data.loc[data["metric"] == denominator_label, "tokens"].sum()
+    overall_ratio = (
+        numerator_total / denominator_total if denominator_total else float("nan")
+    )
+    lines = [
+        "Overall",
+        (
+            f"{numerator_label}/{denominator_label}: "
+            f"{format_ratio(overall_ratio, format_kind)}"
+        ),
+        f"{numerator_label}: {numerator_total:,.0f}",
+        f"{denominator_label}: {denominator_total:,.0f}",
+    ]
+
+    axis.text(
+        0.01,
+        0.97,
+        "\n".join(lines),
+        transform=axis.transAxes,
+        va="top",
+        ha="left",
+        fontsize=9,
+        bbox={
+            "boxstyle": "round,pad=0.35",
+            "facecolor": "white",
+            "edgecolor": "#cccccc",
+            "alpha": 0.85,
+        },
+    )
+
+
+def plot_daily_tokens(data: pd.DataFrame, *, destination: Path) -> None:
     sns.set_theme(style="whitegrid")
     dates = data["date"].drop_duplicates().sort_values().to_list()
     figure, axes = plt.subplots(
-        nrows=2,
+        nrows=len(PLOT_GROUPS),
         ncols=1,
-        figsize=(figure_width(len(dates)), 11),
+        figsize=(figure_width(len(dates)), len(PLOT_GROUPS) * 5.5),
         sharex=True,
     )
     figure.suptitle("Daily Token Usage", fontsize=16)
@@ -200,6 +305,86 @@ def plot_daily_tokens(data: pd.DataFrame, *, workspace: str, destination: Path) 
         axis.yaxis.set_major_formatter(FuncFormatter(token_formatter))
         axis.legend(title="Metric")
         add_metric_totals(axis, chart_data, labels)
+        configure_date_axis(axis, dates)
+
+    figure.tight_layout(rect=(0, 0, 1, 0.96))
+    figure.savefig(destination, dpi=200)
+    plt.close(figure)
+
+
+def plot_daily_ratios(data: pd.DataFrame, *, destination: Path) -> None:
+    sns.set_theme(style="whitegrid")
+    dates = data["date"].drop_duplicates().sort_values().to_list()
+    ratio_data = daily_ratio_dataframe(data)
+    figure, axes = plt.subplots(
+        nrows=len(RATIO_PLOTS),
+        ncols=1,
+        figsize=(figure_width(len(dates)), len(RATIO_PLOTS) * 5.5),
+        sharex=True,
+    )
+    figure.suptitle("Daily Token Usage Ratios", fontsize=16)
+
+    for axis, (title, label, numerator_metric, denominator_metric, format_kind) in zip(
+        axes,
+        RATIO_PLOTS,
+        strict=True,
+    ):
+        chart_data = ratio_data[ratio_data["metric"] == label].copy()
+        chart_data = chart_data.sort_values("date")
+        chart_data["rolling_average"] = chart_data["ratio"].rolling(
+            window=ROLLING_WINDOW_DAYS,
+            min_periods=1,
+        ).mean()
+        daily_data = chart_data.dropna(subset=["ratio"])
+        rolling_data = chart_data.dropna(subset=["rolling_average"])
+        if not daily_data.empty:
+            sns.lineplot(
+                data=daily_data,
+                x="date",
+                y="ratio",
+                marker="o",
+                linewidth=2,
+                label="Daily",
+                ax=axis,
+            )
+        if not rolling_data.empty:
+            sns.lineplot(
+                data=rolling_data,
+                x="date",
+                y="rolling_average",
+                linestyle="--",
+                linewidth=2,
+                label=f"{ROLLING_WINDOW_DAYS}-day MA",
+                ax=axis,
+            )
+        if daily_data.empty and rolling_data.empty:
+            axis.text(
+                0.5,
+                0.5,
+                "No non-zero denominator days",
+                transform=axis.transAxes,
+                va="center",
+                ha="center",
+            )
+
+        axis.set_title(title)
+        axis.set_xlabel("Date")
+        axis.set_ylabel("Ratio")
+        axis.yaxis.set_major_formatter(
+            FuncFormatter(
+                percent_formatter if format_kind == "percent" else multiple_formatter
+            )
+        )
+        axis.set_ylim(bottom=0)
+        if not daily_data.empty or not rolling_data.empty:
+            axis.legend(title="Series")
+        add_ratio_summary(
+            axis,
+            data,
+            numerator_metric=numerator_metric,
+            denominator_metric=denominator_metric,
+            format_kind=format_kind,
+        )
         configure_date_axis(axis, dates)
 
     figure.tight_layout(rect=(0, 0, 1, 0.96))
@@ -232,12 +417,11 @@ def main() -> int:
         return 1
 
     workspace_filter = str(summary.get("workspace_filter") or args.workspace)
-    destination = output_path(workspace_filter)
-    plot_daily_tokens(
-        data,
-        workspace=display_workspace(workspace_filter),
-        destination=destination,
-    )
+    destination = output_path(workspace_filter, ratio=args.ratio)
+    if args.ratio:
+        plot_daily_ratios(data, destination=destination)
+    else:
+        plot_daily_tokens(data, destination=destination)
     print(destination)
     return 0
 
