@@ -25,6 +25,11 @@ COUNT_LABELS = {
     "decisions": "Decisions",
     "rerun": "Rerun",
 }
+DONE_METRICS = ("done", "post_done_human_resume")
+DONE_LABELS = {
+    "done": "Done",
+    "post_done_human_resume": "Done Human Resume",
+}
 DEFAULT_RUNS_DIR = Path(".agentflow-temp") / "runs"
 DEFAULT_OUTPUT_DIR = Path("temp-dir")
 
@@ -46,10 +51,10 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def output_path() -> Path:
+def output_path(prefix: str) -> Path:
     DEFAULT_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-    return DEFAULT_OUTPUT_DIR / f"daily-rerun-rate-{timestamp}.png"
+    return DEFAULT_OUTPUT_DIR / f"{prefix}-{timestamp}.png"
 
 
 def integer_formatter(value: float, _position: int) -> str:
@@ -89,7 +94,16 @@ def daily_rerun_dataframe(
     by_day = summary.get("by_day")
     if not isinstance(by_day, dict) or not by_day:
         return pd.DataFrame(
-            columns=["date", "decisions", "rerun", "decision_rerun_rate", "complexity"]
+            columns=[
+                "date",
+                "decisions",
+                "rerun",
+                "decision_rerun_rate",
+                "complexity",
+                "done",
+                "post_done_human_resume",
+                "post_done_human_resume_rate",
+            ]
         )
 
     rows = []
@@ -101,6 +115,8 @@ def daily_rerun_dataframe(
             continue
         decisions = int(day_summary.get("decisions", 0))
         rerun = int(day_summary.get("rerun_execution", 0))
+        done = int(day_summary.get("done", 0))
+        post_done_human_resume = int(day_summary.get("post_done_human_resume", 0))
         complexity = day_summary.get("complexity")
         rows.append(
             {
@@ -109,21 +125,40 @@ def daily_rerun_dataframe(
                 "rerun": rerun,
                 "decision_rerun_rate": rerun / decisions if decisions else pd.NA,
                 "complexity": float(complexity) if complexity is not None else pd.NA,
+                "done": done,
+                "post_done_human_resume": post_done_human_resume,
+                "post_done_human_resume_rate": (
+                    post_done_human_resume / done if done else pd.NA
+                ),
             }
         )
 
     if not rows:
         return pd.DataFrame(
-            columns=["date", "decisions", "rerun", "decision_rerun_rate", "complexity"]
+            columns=[
+                "date",
+                "decisions",
+                "rerun",
+                "decision_rerun_rate",
+                "complexity",
+                "done",
+                "post_done_human_resume",
+                "post_done_human_resume_rate",
+            ]
         )
 
     wide = pd.DataFrame(rows).set_index("date").sort_index()
     start_date = since_to_timestamp(since_day) or wide.index.min()
     end_date = wide.index.max()
     wide = wide.reindex(pd.date_range(start=start_date, end=end_date, freq="D"))
-    wide[["decisions", "rerun"]] = wide[["decisions", "rerun"]].fillna(0)
+    wide[["decisions", "rerun", "done", "post_done_human_resume"]] = wide[
+        ["decisions", "rerun", "done", "post_done_human_resume"]
+    ].fillna(0)
     wide["decision_rerun_rate"] = wide["decision_rerun_rate"].astype("Float64")
     wide["complexity"] = wide["complexity"].astype("Float64")
+    wide["post_done_human_resume_rate"] = wide[
+        "post_done_human_resume_rate"
+    ].astype("Float64")
     wide.index.name = "date"
     return wide.reset_index()
 
@@ -141,6 +176,24 @@ def count_dataframe(data: pd.DataFrame) -> pd.DataFrame:
     counts["metric"] = pd.Categorical(
         counts["metric"],
         categories=[COUNT_LABELS[metric] for metric in COUNT_METRICS],
+        ordered=True,
+    )
+    return counts
+
+
+def done_count_dataframe(data: pd.DataFrame) -> pd.DataFrame:
+    if data.empty:
+        return pd.DataFrame(columns=["date", "metric", "count"])
+    counts = data.melt(
+        id_vars="date",
+        value_vars=list(DONE_METRICS),
+        var_name="metric",
+        value_name="count",
+    )
+    counts["metric"] = counts["metric"].map(DONE_LABELS)
+    counts["metric"] = pd.Categorical(
+        counts["metric"],
+        categories=[DONE_LABELS[metric] for metric in DONE_METRICS],
         ordered=True,
     )
     return counts
@@ -166,6 +219,28 @@ def add_rate_summary(axis: plt.Axes, summary: dict[str, Any]) -> None:
         f"Decision rerun rate: {rate:.1%}",
         f"Avg complexity: {complexity_text}",
     ]
+    add_text_box(axis, lines)
+
+
+def add_done_count_totals(axis: plt.Axes, summary: dict[str, Any]) -> None:
+    totals = summary.get("totals") if isinstance(summary.get("totals"), dict) else {}
+    lines = [
+        "Totals",
+        f"Done: {int(totals.get('done', 0)):,.0f}",
+        (
+            "Done Human Resume: "
+            f"{int(totals.get('post_done_human_resume', 0)):,.0f}"
+        ),
+    ]
+    add_text_box(axis, lines)
+
+
+def add_done_human_resume_rate_summary(
+    axis: plt.Axes, summary: dict[str, Any]
+) -> None:
+    totals = summary.get("totals") if isinstance(summary.get("totals"), dict) else {}
+    rate = float(totals.get("post_done_human_resume_rate", 0))
+    lines = ["Overall", f"Done human resume rate: {rate:.1%}"]
     add_text_box(axis, lines)
 
 
@@ -282,6 +357,72 @@ def plot_rerun_metrics(
     plt.close(figure)
 
 
+def plot_done_human_resume_metrics(
+    data: pd.DataFrame, *, summary: dict[str, Any], destination: Path
+) -> None:
+    sns.set_theme(style="whitegrid")
+    dates = data["date"].drop_duplicates().sort_values().to_list()
+    figure, axes = plt.subplots(
+        nrows=2,
+        ncols=1,
+        figsize=(figure_width(len(dates)), 11),
+        sharex=True,
+    )
+    figure.suptitle("Daily Done Human Resume", fontsize=16)
+
+    counts = done_count_dataframe(data)
+    sns.lineplot(
+        data=counts,
+        x="date",
+        y="count",
+        hue="metric",
+        hue_order=[DONE_LABELS[metric] for metric in DONE_METRICS],
+        marker="o",
+        linewidth=2,
+        ax=axes[0],
+    )
+    axes[0].set_title("Done / Done Human Resume Counts")
+    axes[0].set_xlabel("Date")
+    axes[0].set_ylabel("Count")
+    axes[0].yaxis.set_major_formatter(FuncFormatter(integer_formatter))
+    axes[0].legend(title="Metric")
+    add_done_count_totals(axes[0], summary)
+    configure_date_axis(axes[0], dates)
+
+    rate_data = data.dropna(subset=["post_done_human_resume_rate"])
+    if not rate_data.empty:
+        sns.lineplot(
+            data=rate_data,
+            x="date",
+            y="post_done_human_resume_rate",
+            marker="o",
+            linewidth=2,
+            label="Done Human Resume Rate",
+            ax=axes[1],
+        )
+        axes[1].legend(title="Metric")
+    else:
+        axes[1].text(
+            0.5,
+            0.5,
+            "No done days",
+            transform=axes[1].transAxes,
+            va="center",
+            ha="center",
+        )
+    axes[1].set_title("Done Human Resume Rate")
+    axes[1].set_xlabel("Date")
+    axes[1].set_ylabel("Rate")
+    axes[1].yaxis.set_major_formatter(FuncFormatter(percent_formatter))
+    axes[1].set_ylim(0, 1)
+    add_done_human_resume_rate_summary(axes[1], summary)
+    configure_date_axis(axes[1], dates)
+
+    figure.tight_layout(rect=(0, 0, 1, 0.96))
+    figure.savefig(destination, dpi=200)
+    plt.close(figure)
+
+
 def main() -> int:
     args = parse_args()
     runs_dir = args.runs_dir.expanduser()
@@ -303,9 +444,16 @@ def main() -> int:
         print(f"No rerun decision data found under: {runs_dir}", file=sys.stderr)
         return 1
 
-    destination = output_path()
-    plot_rerun_metrics(data, summary=summary, destination=destination)
-    print(destination)
+    rerun_destination = output_path("daily-rerun-rate")
+    done_human_resume_destination = output_path("daily-done-human-resume")
+    plot_rerun_metrics(data, summary=summary, destination=rerun_destination)
+    plot_done_human_resume_metrics(
+        data,
+        summary=summary,
+        destination=done_human_resume_destination,
+    )
+    print(rerun_destination)
+    print(done_human_resume_destination)
     return 0
 
 

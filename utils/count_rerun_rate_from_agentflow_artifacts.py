@@ -71,6 +71,7 @@ class DayStats:
     decisions: int = 0
     loop_detector_invocations: int = 0
     execution_rounds: int = 0
+    post_done_human_resume: int = 0
 
     def add(self, record: DecisionRecord) -> None:
         self.runs.add(record.run_id)
@@ -94,6 +95,11 @@ class DayStats:
     def add_job_metadata(self, record: JobMetadataRecord) -> None:
         job_key = f"{record.run_id}/{record.job}"
         self.job_complexities[job_key] = record.complexity_hint
+
+    def add_post_done_human_resume(self, record: DecisionRecord) -> None:
+        self.runs.add(record.run_id)
+        self.jobs.add(f"{record.run_id}/{record.job}")
+        self.post_done_human_resume += 1
 
 
 def parse_since(value: str) -> date:
@@ -371,6 +377,36 @@ def iter_job_metadata_artifacts(runs_dir: Path) -> list[Path]:
     )
 
 
+def max_execution_iteration_by_job_cycle(
+    execution_records: list[ExecutionRecord],
+) -> dict[tuple[str, str, int], int]:
+    max_iterations: dict[tuple[str, str, int], int] = {}
+    for record in execution_records:
+        if record.cycle_number is None or record.iteration_number is None:
+            continue
+        key = (record.run_id, record.job, record.cycle_number)
+        max_iterations[key] = max(
+            max_iterations.get(key, 0),
+            record.iteration_number,
+        )
+    return max_iterations
+
+
+def is_post_done_human_resume(
+    record: DecisionRecord,
+    max_execution_iterations: dict[tuple[str, str, int], int],
+) -> bool:
+    if record.next_action != "done":
+        return False
+    if record.cycle_number is None or record.iteration_number is None:
+        return False
+    max_execution_iteration = max_execution_iterations.get(
+        (record.run_id, record.job, record.cycle_number),
+        0,
+    )
+    return max_execution_iteration > record.iteration_number
+
+
 def summarize(runs_dir: Path, *, since_day: date | None) -> dict[str, Any]:
     runs_dir = runs_dir.expanduser().resolve()
     execution_artifacts = iter_execution_artifacts(runs_dir)
@@ -461,12 +497,16 @@ def summarize(runs_dir: Path, *, since_day: date | None) -> dict[str, Any]:
 
     by_day: defaultdict[str, DayStats] = defaultdict(DayStats)
     totals = DayStats()
+    max_execution_iterations = max_execution_iteration_by_job_cycle(execution_records)
     for record in execution_records:
         by_day[record.day].add_execution(record)
         totals.add_execution(record)
     for record in records:
         by_day[record.day].add(record)
         totals.add(record)
+        if is_post_done_human_resume(record, max_execution_iterations):
+            by_day[record.day].add_post_done_human_resume(record)
+            totals.add_post_done_human_resume(record)
     for record in loop_records:
         by_day[record.day].add_loop(record)
         totals.add_loop(record)
@@ -520,6 +560,11 @@ def stats_to_dict(stats: DayStats) -> dict[str, Any]:
         "max_rounds_per_job": max(stats.job_execution_rounds.values(), default=0),
         "decisions": stats.decisions,
         **{action: stats.actions[action] for action in REVIEW_DECISION_ACTIONS},
+        "post_done_human_resume": stats.post_done_human_resume,
+        "post_done_human_resume_rate": safe_rate(
+            stats.post_done_human_resume,
+            stats.actions["done"],
+        ),
         "decision_rerun_rate": safe_rate(
             stats.actions["rerun_execution"],
             stats.decisions,
@@ -647,6 +692,8 @@ def row_from_stats(
         str(stats["rerun_execution"]),
         str(stats["human_review"]),
         str(stats["done"]),
+        str(stats["post_done_human_resume"]),
+        format_rate(float(stats["post_done_human_resume_rate"])),
         format_rate(float(stats["decision_rerun_rate"])),
     ]
     if show_loop_info:
@@ -698,6 +745,8 @@ def print_text_summary(summary: dict[str, Any], *, show_loop_info: bool) -> None
         "rerun",
         "human_review",
         "done",
+        "done_hum_resume",
+        "done_hum_resume_rate",
         "decision_rerun_rate",
     ]
     if show_loop_info:
