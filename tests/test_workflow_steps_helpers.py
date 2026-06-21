@@ -7,7 +7,13 @@ from typing import Callable, TypeVar
 
 import pytest
 
-from agentflow_core.config import AgentConfig, JobConfig, ProgramConfig, WorkflowConfig
+from agentflow_core.config import (
+    AgentConfig,
+    JobConfig,
+    JobMetadataConfig,
+    ProgramConfig,
+    WorkflowConfig,
+)
 from agentflow_core.errors import WorkflowError
 from agentflow_core.workflow_steps import (
     STEP_OUTPUT_RETRY_LIMIT,
@@ -111,6 +117,7 @@ def make_job(*, human_review: str | None = None) -> JobConfig:
         index=0,
         topic="unit-topic",
         task="Original task text.",
+        metadata=JobMetadataConfig(complexity_hint=50),
         status="pending",
         human_review=human_review,
     )

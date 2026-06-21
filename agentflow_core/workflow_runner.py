@@ -19,7 +19,10 @@ from agentflow_core.workflow_human_review import (
     prompt_human_review_action,
 )
 from agentflow_core.workflow_steps import run_autonomy_decision_step
-from agentflow_core.workflow_io import reset_job_temp_dir
+from agentflow_core.workflow_io import reset_job_temp_dir, write_json_artifact
+
+
+JOB_METADATA_FILENAME = "job-metadata.json"
 
 
 def build_final_result(
@@ -42,6 +45,43 @@ def build_final_result(
         "config_file": str(workflow_config.config_path),
         "jobs_file": str(workflow_config.jobs_path),
     }
+
+
+def build_job_metadata_payload(
+    *,
+    workflow_config: WorkflowConfig,
+    job: JobConfig,
+    run_id: str,
+) -> dict[str, Any]:
+    return {
+        "run_id": run_id,
+        "topic": job.topic,
+        "task": job.task,
+        "metadata": {"complexity_hint": job.metadata.complexity_hint},
+        "agents": {
+            key: {"model": agent.model, "variant": agent.variant}
+            for key, agent in sorted(workflow_config.agents.items())
+        },
+    }
+
+
+def write_job_metadata_artifact(
+    *,
+    workflow_config: WorkflowConfig,
+    job: JobConfig,
+    run_id: str,
+    job_temp_dir: Path,
+) -> Path:
+    metadata_path = job_temp_dir / JOB_METADATA_FILENAME
+    write_json_artifact(
+        metadata_path,
+        build_job_metadata_payload(
+            workflow_config=workflow_config,
+            job=job,
+            run_id=run_id,
+        ),
+    )
+    return metadata_path
 
 
 def _resume_cycle_from_latest_iteration(
@@ -88,6 +128,12 @@ def run_job(
     )
     update_job_status(workflow_config, job_index=current_job.index, status="running")
     reset_job_temp_dir(job_temp_dir)
+    write_job_metadata_artifact(
+        workflow_config=workflow_config,
+        job=current_job,
+        run_id=run_id,
+        job_temp_dir=job_temp_dir,
+    )
 
     cycle_results: list[dict[str, Any]] = []
     for cycle_number in range(1, workflow_config.program.max_rounds + 1):

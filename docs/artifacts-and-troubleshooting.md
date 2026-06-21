@@ -18,6 +18,7 @@ Every run gets a timestamp-based `run_id`. All jobs in the same run are stored u
 
 Per job, expect files such as:
 
+- `job-metadata.json`
 - `execution-cycle-<n>-iteration-<m>.txt`
 - reviewer output files, with names depending on the active prompt pack
 - `review-decision-cycle-<n>-iteration-<m>.txt`
@@ -28,6 +29,22 @@ Per job, expect files such as:
 - `loop-detector-cycle-<n>-iteration-<m>.txt`, when loop detection runs
 
 Exact names come from agent output path templates in the config.
+
+`job-metadata.json` is written immediately after the job temp directory is reset and before the first cycle starts. It records the run id, topic, task, required job metadata such as `complexity_hint`, and the resolved `model` / `variant` for each configured agent. Statistics utilities such as `utils/count_rerun_rate_from_agentflow_artifacts.py` read this file.
+
+Required shape:
+
+```json
+{
+  "run_id": "20260621-102055",
+  "topic": "api-service-design",
+  "task": "Produce an API service execution plan.",
+  "metadata": {"complexity_hint": 35},
+  "agents": {
+    "execution": {"model": "openai/gpt-5.5", "variant": "xhigh"}
+  }
+}
+```
 
 ## JSON validation
 

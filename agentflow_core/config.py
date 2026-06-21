@@ -13,6 +13,7 @@ from agentflow_core.errors import ConfigError
 DEFAULT_MODEL = "openai/gpt-5.4"
 DEFAULT_ATTACH_URL = "http://localhost:4096"
 DEFAULT_PROMPT_PACK = "implementation"
+DEFAULT_JOB_COMPLEXITY_HINT = 50
 
 
 @dataclass(frozen=True)
@@ -50,10 +51,16 @@ class PromptPackAgentConfig:
 
 
 @dataclass(frozen=True)
+class JobMetadataConfig:
+    complexity_hint: int
+
+
+@dataclass(frozen=True)
 class JobConfig:
     index: int
     topic: str
     task: str
+    metadata: JobMetadataConfig
     status: str
     human_review: str | None
 
@@ -408,6 +415,7 @@ def _build_jobs(job_items: Any) -> list[JobConfig]:
         job_data = _expect_mapping(item, field_name=f"jobs[{index}]")
         topic = _expect_string(job_data.get("topic"), field_name=f"jobs[{index}].topic")
         task = _expect_string(job_data.get("task"), field_name=f"jobs[{index}].task")
+        metadata = _build_job_metadata(job_data.get("metadata"), job_index=index)
         status = str(job_data.get("status", "pending")).strip().lower() or "pending"
         human_review_value = job_data.get("human_review")
         human_review: str | None = None
@@ -428,11 +436,29 @@ def _build_jobs(job_items: Any) -> list[JobConfig]:
                 index=index,
                 topic=topic,
                 task=task,
+                metadata=metadata,
                 status=status,
                 human_review=human_review,
             )
         )
     return jobs
+
+
+def _build_job_metadata(value: Any, *, job_index: int) -> JobMetadataConfig:
+    if value is None:
+        return JobMetadataConfig(complexity_hint=DEFAULT_JOB_COMPLEXITY_HINT)
+
+    metadata = _expect_mapping(value, field_name=f"jobs[{job_index}].metadata")
+    complexity_hint = metadata.get("complexity_hint", DEFAULT_JOB_COMPLEXITY_HINT)
+    if (
+        isinstance(complexity_hint, bool)
+        or not isinstance(complexity_hint, int)
+        or not 1 <= complexity_hint <= 100
+    ):
+        raise ConfigError(
+            f"`jobs[{job_index}].metadata.complexity_hint` must be an integer from 1 to 100"
+        )
+    return JobMetadataConfig(complexity_hint=complexity_hint)
 
 
 def _load_yaml_mapping(path: Path, *, field_name: str) -> dict[str, Any]:

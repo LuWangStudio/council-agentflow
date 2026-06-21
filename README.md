@@ -139,6 +139,8 @@ jobs:
     task: |
       Produce an API service execution plan with goals, scope, constraints,
       main steps, risks, and validation method.
+    metadata:
+      complexity_hint: 35
     status: pending
 ```
 
@@ -163,6 +165,8 @@ Job status controls execution:
 
 You can add `human_review: |` to a job while the workflow is paused. The workflow only injects that feedback after you explicitly confirm it should be used for the current round.
 
+Each job must include `metadata.complexity_hint`, an integer from 1 to 100 used in run statistics and copied into the job artifact metadata.
+
 Use path-safe, unique `topic` values such as `api-service-design`; the topic becomes part of the temp output path.
 
 ## Safety and privacy
@@ -182,6 +186,7 @@ By default, outputs are written under:
 Typical artifacts include:
 
 - agent output files;
+- `job-metadata.json` containing the run id, topic, task, job metadata, and resolved agent model/variant settings;
 - `adjudication-memory.latest.txt`;
 - merged review files from `review_decision`;
 - `autonomy-decision-*.report.md` when `autonomy_decision` runs;

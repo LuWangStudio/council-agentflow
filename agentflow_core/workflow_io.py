@@ -20,6 +20,14 @@ def reset_job_temp_dir(job_temp_dir: Path) -> None:
     job_temp_dir.mkdir(parents=True, exist_ok=True)
 
 
+def write_json_artifact(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+
 def load_text(path: Path) -> str:
     if not path.exists():
         raise WorkflowError(f"Expected agent output file does not exist: {path}")

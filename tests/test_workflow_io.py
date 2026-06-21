@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,7 @@ from agentflow_core.workflow_io import (
     load_text,
     read_text_if_exists,
     reset_job_temp_dir,
+    write_json_artifact,
 )
 
 
@@ -99,3 +101,14 @@ def test_reset_job_temp_dir_creates_missing_directory(tmp_path: Path) -> None:
 
     assert job_temp_dir.is_dir()
     assert list(job_temp_dir.iterdir()) == []
+
+
+def test_write_json_artifact_writes_pretty_json_and_creates_parent(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "nested" / "artifact.json"
+
+    write_json_artifact(path, {"name": "测试", "value": 1})
+
+    assert json.loads(path.read_text(encoding="utf-8")) == {"name": "测试", "value": 1}
+    assert path.read_text(encoding="utf-8").endswith("\n")

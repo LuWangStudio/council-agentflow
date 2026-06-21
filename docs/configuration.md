@@ -153,6 +153,8 @@ jobs:
   - topic: api-service-design
     task: |
       Produce an API service execution plan.
+    metadata:
+      complexity_hint: 35
     status: pending
 ```
 
@@ -161,6 +163,7 @@ Rules:
 - `topic` must be unique.
 - `topic` is used as part of the job temp directory path; prefer path-safe names such as `api-service-design` and avoid path separators or `..`.
 - `task` must be a non-empty string.
+- `metadata` must be a mapping and include `complexity_hint` as an integer from 1 to 100.
 - `status: done` and `status: needs_human_review` are terminal and skipped.
 - Any other status is executable.
 - `human_review`, when present, must be a non-empty string.

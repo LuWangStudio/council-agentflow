@@ -3,6 +3,8 @@ jobs:
     task: |
       Produce an API service execution plan that includes goals, scope, constraints,
       main steps, risks, and validation methods.
+    metadata:
+      complexity_hint: 35
     status: pending
     # Optional: add this field manually during a human-review pause.
     # human_review: |
@@ -11,4 +13,6 @@ jobs:
   - topic: old-job
     task: |
       This job is already complete and should not run again.
+    metadata:
+      complexity_hint: 10
     status: done

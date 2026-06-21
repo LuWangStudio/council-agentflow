@@ -97,7 +97,21 @@ def write_workflow_config(
     )
 
 
-def write_jobs_file(tmp_path: Path, jobs: list[dict[str, Any]]) -> Path:
+def with_default_job_metadata(jobs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    hydrated_jobs = deepcopy(jobs)
+    for job in hydrated_jobs:
+        job.setdefault("metadata", {"complexity_hint": 50})
+    return hydrated_jobs
+
+
+def write_jobs_file(
+    tmp_path: Path,
+    jobs: list[dict[str, Any]],
+    *,
+    add_default_metadata: bool = True,
+) -> Path:
+    if add_default_metadata:
+        jobs = with_default_job_metadata(jobs)
     return write_yaml(tmp_path / "jobs.yaml", {"jobs": jobs})
 
 
@@ -125,6 +139,7 @@ def test_loads_minimal_workflow_config_and_jobs_with_program_defaults(
     assert workflow_config.program.write_back is True
     assert set(workflow_config.agents) == set(REQUIRED_AGENT_KEYS)
     assert workflow_config.jobs[0].topic == "unit-tests"
+    assert workflow_config.jobs[0].metadata.complexity_hint == 50
     assert workflow_config.jobs[0].status == "pending"
 
 
@@ -654,6 +669,74 @@ def test_job_human_review_must_be_non_empty_when_provided(tmp_path: Path) -> Non
         load_workflow_config(config_path, jobs_path)
 
 
+def test_job_metadata_defaults_when_missing(tmp_path: Path) -> None:
+    prompt_pack_dir = create_prompt_pack(tmp_path)
+    config_path = write_workflow_config(tmp_path, prompt_pack_dir)
+    jobs_path = write_jobs_file(
+        tmp_path,
+        [{"topic": "missing-metadata", "task": "Default job metadata."}],
+        add_default_metadata=False,
+    )
+
+    workflow_config = load_workflow_config(config_path, jobs_path)
+
+    assert workflow_config.jobs[0].metadata.complexity_hint == 50
+
+
+def test_job_metadata_complexity_hint_defaults_when_missing(
+    tmp_path: Path,
+) -> None:
+    prompt_pack_dir = create_prompt_pack(tmp_path)
+    config_path = write_workflow_config(tmp_path, prompt_pack_dir)
+    jobs_path = write_jobs_file(
+        tmp_path,
+        [
+            {
+                "topic": "missing-complexity-hint",
+                "task": "Default complexity hint.",
+                "metadata": {},
+            }
+        ],
+        add_default_metadata=False,
+    )
+
+    workflow_config = load_workflow_config(config_path, jobs_path)
+
+    assert workflow_config.jobs[0].metadata.complexity_hint == 50
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        "not-a-mapping",
+        {"complexity_hint": 0},
+        {"complexity_hint": 101},
+        {"complexity_hint": True},
+        {"complexity_hint": "55"},
+    ],
+)
+def test_job_metadata_complexity_hint_must_be_integer_from_1_to_100(
+    tmp_path: Path,
+    metadata: object,
+) -> None:
+    prompt_pack_dir = create_prompt_pack(tmp_path)
+    config_path = write_workflow_config(tmp_path, prompt_pack_dir)
+    jobs_path = write_jobs_file(
+        tmp_path,
+        [
+            {
+                "topic": "invalid-metadata",
+                "task": "Reject invalid metadata.",
+                "metadata": metadata,
+            }
+        ],
+        add_default_metadata=False,
+    )
+
+    with pytest.raises(ConfigError, match=r"jobs\[0\]\.metadata"):
+        load_workflow_config(config_path, jobs_path)
+
+
 def test_update_job_status_writes_back_only_status_when_enabled(
     tmp_path: Path,
 ) -> None:
@@ -748,6 +831,7 @@ def test_reload_job_from_jobs_file_returns_updated_job_data(tmp_path: Path) -> N
             {
                 "topic": "reload",
                 "task": "Updated task.",
+                "metadata": {"complexity_hint": 80},
                 "status": "running",
                 "human_review": "Fresh feedback.",
             }
@@ -759,6 +843,7 @@ def test_reload_job_from_jobs_file_returns_updated_job_data(tmp_path: Path) -> N
 
     assert job.topic == "reload"
     assert job.task == "Updated task."
+    assert job.metadata.complexity_hint == 80
     assert job.status == "running"
     assert job.human_review == "Fresh feedback."
 

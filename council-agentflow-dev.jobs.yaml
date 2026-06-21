@@ -1,4 +1,31 @@
 jobs:
+  - topic: commit-changes
+    metadata:
+      complexity_hint: 5
+    task: |
+      commit the changes of the agentflow program and the yaml files, the changes are about to add a json file by runnging the agentflow program aside the runs-artifacts. ignore any md file changes and council-agentflow-dev.jobs.yaml. They are not part of the commit.
+    status: done
+
+  - topic: add-meta-json-for-job
+    metadata:
+      complexity_hint: 25
+    task: |
+      The script utils/count_rerun_rate_from_agentflow_artifacts.py is used to produce statistic results about jobs. It reads a job-metadata.json under every run-artifact dir.\nThe main program of this agentflow does not yet support to create such job-metadata.json file. You need to implement it.
+      the json file looks like this:{\"run_id\": \"....\",\n  \"topic\": \"...\",\n  \"task\"\
+      : \"....\",\n  \"metadata\": {\n    \"complexity_hint\": 55\n  },\n  \"agents\"\
+      : {\n    \"autonomy_decision\": {\n      \"model\": \"openai/gpt-5.5\",\n    \
+      \  \"variant\": \"xhigh\"\n    },\n    \"execution\": {\n      \"model\": \"openai/gpt-5.5\"\
+      ,\n      \"variant\": \"xhigh\"\n    },\n    \"loop_detector\": {\n      \"model\"\
+      : \"openai/gpt-5.5\",\n      \"variant\": \"high\"\n    },\n    \"review_decision\"\
+      : {\n      \"model\": \"openai/gpt-5.5\",\n      \"variant\": \"xhigh\"\n    },\n\
+      \    \"reviewer_1\": {\n      \"model\": \"openai/gpt-5.5\",\n      \"variant\"\
+      : \"xhigh\"\n    },\n    \"reviewer_2\": {\n      \"model\": \"openai/gpt-5.5\"\
+      ,\n      \"variant\": \"xhigh\"\n    }\n  }\n}
+
+      the information in the json file come from the config yaml and jobs yaml.
+      the jobs yaml should also be extended, it needs for every job to add a new field metadata which contains a field named complexity_hint with value range from 1 to 100.
+    status: done
+
   - topic: add-first-layer-unit-tests
     task: |
       Add the first layer of unit tests for this project.
@@ -114,4 +141,6 @@ jobs:
         higher using pure unit tests.
       - Do not add tests for full real agent execution paths in this job.
       - Leave deeper orchestration tests for a later testing layer.
+    metadata:
+      complexity_hint: 45
     status: done

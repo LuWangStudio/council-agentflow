@@ -8,7 +8,7 @@ program:
   max_rounds: 1
   max_iterations_per_cycle: 50
   temp_dir: .agentflow-temp
-  write_back: true
+  write_back: false
 
 agents:
   execution:
