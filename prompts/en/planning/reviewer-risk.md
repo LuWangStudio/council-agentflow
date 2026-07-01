@@ -18,6 +18,13 @@ Adjudication memory file path: `${adjudication_memory_output_path}`
 You must read `${execution_response_path}` and review the planning content produced by the execution agent against the task.
 Your primary responsibility is to check whether the plan is realistic and executable, whether risks are identified, and whether the validation method is sufficient.
 
+Review target selection (very important):
+- `${execution_response_path}` is an agentflow runtime artifact, not necessarily the formal planning file.
+- After reading `${execution_response_path}`, if it contains a `[DELIVERABLE]` section that declares `path: <formal planning file path>`, you must read that formal planning file and use its contents as the primary review target.
+- In that case, `${execution_response_path}` is only for locating the formal deliverable, checking whether this round updated it, and understanding runtime context; do not review the runtime execution report as if it were the planning body.
+- If no formal planning file path is declared, review the planning body in `${execution_response_path}`.
+- If a formal planning file path is declared but the file does not exist or cannot be read, state under `[EXECUTION_ACTION_REQUIRED]` that the formal deliverable path is unreadable and execution must fix the path or write the file.
+
 If `${adjudication_memory_output_path}` exists, you must also read it.
 It records issues that review-decision has already adjudicated as `rejected` or `deferred_human`.
 Do not mechanically raise those issues again; you may re-raise one only if you find clear new evidence.
@@ -37,6 +44,7 @@ Boundary rules:
 - If an issue is only "could be more detailed" but the current plan is already sufficient to move forward, do not escalate it to a mandatory change.
 - If the task, background materials, or execution output do not provide enough evidence, do not invent missing items; explicitly write "unable to determine".
 - If you re-raise an issue already present in adjudication memory, you must explicitly write in that comment: `re-raise issue: <issue_id>` and `new evidence: <evidence>`.
+- If the formal planning file contains workflow/review process content, such as "previous review result", "this round's revision notes", "accepted reviewer comments", `MUST_FIX`, `CLOSABLE_ACCEPTANCE_ITEMS`, `NEXT_STEP_FOCUS`, merged review summaries, adjudication memory summaries, reviewer output summaries, or any `0.`-prefixed workflow revision note, require its removal under `[EXECUTION_ACTION_REQUIRED]` unless the task explicitly asks to keep a changelog.
 
 File content requirements:
 - Use the following three sections:
